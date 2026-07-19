@@ -1,0 +1,211 @@
+{
+  "entities": {
+    "HostelConfig": {
+      "title": "HostelConfig",
+      "description": "Hostel global configuration and pricing",
+      "type": "object",
+      "properties": {
+        "hostelName": {
+          "type": "string",
+          "description": "Name of the boys hostel"
+        },
+        "caretakerName": {
+          "type": "string",
+          "description": "Name of the hostel caretaker"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Caretaker contact phone number"
+        },
+        "email": {
+          "type": "string",
+          "description": "Caretaker contact email"
+        },
+        "singleRoomRent": {
+          "type": "number",
+          "description": "Monthly rent for single occupancy"
+        },
+        "twinRoomRent": {
+          "type": "number",
+          "description": "Monthly rent for twin sharing"
+        },
+        "singleRoomDeposit": {
+          "type": "number",
+          "description": "Security deposit for single occupancy"
+        },
+        "twinRoomDeposit": {
+          "type": "number",
+          "description": "Security deposit for twin sharing"
+        },
+        "coolerPrice": {
+          "type": "number",
+          "description": "Monthly cost for cooler add-on"
+        },
+        "laundryPrice": {
+          "type": "number",
+          "description": "Monthly cost for laundry add-on"
+        },
+        "chairPrice": {
+          "type": "number",
+          "description": "Monthly cost for desk chair add-on"
+        },
+        "lockerPrice": {
+          "type": "number",
+          "description": "Monthly cost for safety locker add-on"
+        },
+        "wifiSsid": {
+          "type": "string",
+          "description": "Hostel WiFi SSID network name"
+        },
+        "wifiPassword": {
+          "type": "string",
+          "description": "Hostel WiFi access password"
+        },
+        "upiId": {
+          "type": "string",
+          "description": "UPI payment ID of the caretaker"
+        },
+        "upiName": {
+          "type": "string",
+          "description": "UPI display name of the caretaker"
+        },
+        "hidePaymentQrCode": {
+          "type": "boolean",
+          "description": "Toggle to hide/unhide payment QR code section on the landing page/contact area"
+        }
+      },
+      "required": [
+        "hostelName",
+        "phone",
+        "email"
+      ]
+    },
+    "BookingInquiry": {
+      "title": "BookingInquiry",
+      "description": "Student hostel reservation details and inquiry history",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique inquiry ID"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name of the student"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Contact phone number of the student"
+        },
+        "email": {
+          "type": "string",
+          "description": "Contact email address of the student"
+        },
+        "roomType": {
+          "type": "string",
+          "description": "Selected room occupancy type (single or twin)"
+        },
+        "studyYear": {
+          "type": "string",
+          "description": "Current college academic year of the student"
+        },
+        "checkInDate": {
+          "type": "string",
+          "description": "Intended date of checking in to the hostel"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any custom requests or inquiry notes"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the booking/student: pending, approved, or rejected"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Date and time of submission"
+        }
+      },
+      "required": [
+        "fullName",
+        "phone",
+        "status"
+      ]
+    },
+    "MaintenanceLog": {
+      "title": "MaintenanceLog",
+      "description": "Hostel room or facility repair and maintenance tasks",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique log ID"
+        },
+        "roomNumber": {
+          "type": "string",
+          "description": "Room number or area needing repair (e.g., Room 102, Kitchen, Lobby)"
+        },
+        "issueType": {
+          "type": "string",
+          "description": "Category of repair (plumbing, electrical, furniture, appliance, internet, other)",
+          "enum": ["plumbing", "electrical", "furniture", "appliance", "internet", "other"]
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of the issue"
+        },
+        "severity": {
+          "type": "string",
+          "description": "Priority of the repair (low, medium, high)",
+          "enum": ["low", "medium", "high"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of work: pending, in-progress, or resolved",
+          "enum": ["pending", "in-progress", "resolved"]
+        },
+        "cost": {
+          "type": "number",
+          "description": "Financial cost of the repair/maintenance"
+        },
+        "reportedDate": {
+          "type": "string",
+          "description": "The date the issue was noted"
+        },
+        "resolvedDate": {
+          "type": "string",
+          "description": "The date the issue was completed/resolved"
+        },
+        "assignedTo": {
+          "type": "string",
+          "description": "Name of technician or agency assigned to work on the issue"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any subsequent updates or notes"
+        }
+      },
+      "required": [
+        "roomNumber",
+        "issueType",
+        "severity",
+        "status",
+        "reportedDate"
+      ]
+    }
+  },
+  "firestore": {
+    "/config/settings": {
+      "schema": "HostelConfig",
+      "description": "Global settings document for hostel pricing and caretakers"
+    },
+    "/bookings/{bookingId}": {
+      "schema": "BookingInquiry",
+      "description": "Booking requests and active student enrollment profiles"
+    },
+    "/maintenance-logs/{logId}": {
+      "schema": "MaintenanceLog",
+      "description": "Maintenance tasks, room repairs, and facility work items"
+    }
+  }
+}
