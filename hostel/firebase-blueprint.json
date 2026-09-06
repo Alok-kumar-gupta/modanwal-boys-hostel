@@ -124,6 +124,22 @@
         "timestamp": {
           "type": "string",
           "description": "Date and time of submission"
+        },
+        "idCardDownloadLimit": {
+          "type": "number",
+          "description": "Maximum number of times the student is permitted to download their ID card (default 1)"
+        },
+        "idCardDownloadCount": {
+          "type": "number",
+          "description": "Total number of times the student has downloaded their ID card"
+        },
+        "idCardPermissionRequested": {
+          "type": "boolean",
+          "description": "Flag indicating if the student requested owner permission to re-download after exceeding limit"
+        },
+        "idCardPermissionRequestedAt": {
+          "type": "string",
+          "description": "Timestamp when download permission was requested by student"
         }
       },
       "required": [
@@ -192,6 +208,37 @@
         "status",
         "reportedDate"
       ]
+    },
+    "NoticeItem": {
+      "title": "NoticeItem",
+      "description": "Digital hostel notices and live announcements",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string" },
+        "priority": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "postedBy": { "type": "string" },
+        "isPinned": { "type": "boolean" }
+      },
+      "required": ["title", "content", "category"]
+    },
+    "StudentToken": {
+      "title": "StudentToken",
+      "description": "Student pass tokens and access keycodes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tokenCode": { "type": "string" },
+        "assignedStudentName": { "type": "string" },
+        "assignedStudentPhone": { "type": "string" },
+        "roomNumber": { "type": "string" },
+        "status": { "type": "string" },
+        "generatedAt": { "type": "string" }
+      },
+      "required": ["tokenCode", "status"]
     }
   },
   "firestore": {
@@ -206,6 +253,14 @@
     "/maintenance-logs/{logId}": {
       "schema": "MaintenanceLog",
       "description": "Maintenance tasks, room repairs, and facility work items"
+    },
+    "/notices/{noticeId}": {
+      "schema": "NoticeItem",
+      "description": "Hostel notices and announcement items"
+    },
+    "/tokens/{tokenId}": {
+      "schema": "StudentToken",
+      "description": "Security tokens and gate access passes"
     }
   }
 }
