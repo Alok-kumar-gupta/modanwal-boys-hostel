@@ -20,6 +20,7 @@ import SimulatedEmailModal from './components/SimulatedEmailModal';
 import WebsiteRatingModal from './components/WebsiteRatingModal';
 import NoticeBoard from './components/NoticeBoard';
 import StudentVerificationModal from './components/StudentVerificationModal';
+import StudentSelfRegistrationModal from './components/StudentSelfRegistrationModal';
 import { BookingInquiry, HostelConfig, NoticeItem } from './types';
 import { parseStudentVerificationParams, StudentVerificationPayload } from './lib/verificationUtil';
 import { syncSeoMetadata } from './lib/seoManager';
@@ -34,7 +35,7 @@ import {
 } from './lib/hostelService';
 
 interface PreConfigType {
-  roomType: 'single' | 'twin';
+  roomType: 'single' | 'twin' | 'full';
   tenure: string;
   addons: string[];
   totalMonthly: number;
@@ -48,8 +49,10 @@ const DEFAULT_HOSTEL_CONFIG: HostelConfig = {
   email: 'modanwalboyshostel@gmail.com',
   singleRoomRent: 0,
   twinRoomRent: 0,
+  fullRoomRent: 0,
   singleRoomDeposit: 3000,
   twinRoomDeposit: 2000,
+  fullRoomDeposit: 3500,
   coolerPrice: 500,
   laundryPrice: 400,
   chairPrice: 150,
@@ -68,6 +71,7 @@ export default function App() {
   const [isOwnerOpen, setIsOwnerOpen] = useState(false);
   const [isStudentDashboardOpen, setIsStudentDashboardOpen] = useState(false);
   const [selectedStudentDashboardId, setSelectedStudentDashboardId] = useState<string | null>(null);
+  const [isSelfRegistrationOpen, setIsSelfRegistrationOpen] = useState(false);
   const [isRateWebsiteOpen, setIsRateWebsiteOpen] = useState(false);
   const [notifiedBooking, setNotifiedBooking] = useState<BookingInquiry | null>(null);
 
@@ -130,14 +134,17 @@ export default function App() {
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
 
   useEffect(() => {
-    const checkVerificationUrl = () => {
+    const checkUrls = () => {
       const fullUrl = window.location.href;
-      const hash = window.location.hash;
-      const search = window.location.search;
+      const hash = window.location.hash.toLowerCase();
+      const search = window.location.search.toLowerCase();
+      const lowerFullUrl = fullUrl.toLowerCase();
+
+      // 1. Check Student ID Verification QR
       if (
-        fullUrl.includes('verify=') ||
-        fullUrl.includes('verify-student') ||
-        fullUrl.includes('uid=MBH-') ||
+        lowerFullUrl.includes('verify=') ||
+        lowerFullUrl.includes('verify-student') ||
+        lowerFullUrl.includes('uid=mbh-') ||
         hash.includes('verify') ||
         search.includes('verify')
       ) {
@@ -147,14 +154,34 @@ export default function App() {
           setIsVerificationModalOpen(true);
         }
       }
+
+      // 2. Check Owner New Student Admission QR Code / Self-Registration Link
+      if (
+        lowerFullUrl.includes('self-register') ||
+        lowerFullUrl.includes('mode=self-register') ||
+        lowerFullUrl.includes('action=register') ||
+        lowerFullUrl.includes('register=true') ||
+        lowerFullUrl.includes('mode=register') ||
+        hash.includes('self-register') ||
+        hash.includes('register') ||
+        hash.includes('admission') ||
+        search.includes('self-register') ||
+        search.includes('register') ||
+        search.includes('admission') ||
+        search.includes('mode=self-register')
+      ) {
+        setIsSelfRegistrationOpen(true);
+      }
     };
 
-    checkVerificationUrl();
-    window.addEventListener('hashchange', checkVerificationUrl);
-    window.addEventListener('popstate', checkVerificationUrl);
+    checkUrls();
+    const timer = setTimeout(checkUrls, 300);
+    window.addEventListener('hashchange', checkUrls);
+    window.addEventListener('popstate', checkUrls);
     return () => {
-      window.removeEventListener('hashchange', checkVerificationUrl);
-      window.removeEventListener('popstate', checkVerificationUrl);
+      clearTimeout(timer);
+      window.removeEventListener('hashchange', checkUrls);
+      window.removeEventListener('popstate', checkUrls);
     };
   }, []);
 
@@ -297,6 +324,7 @@ export default function App() {
         config={hostelConfig}
         onOwnerClick={() => setIsOwnerOpen(true)}
         onStudentDashboardClick={() => handleOpenStudentDashboard()}
+        onSelfRegistrationClick={() => setIsSelfRegistrationOpen(true)}
         onRateWebsiteClick={() => setIsRateWebsiteOpen(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -332,6 +360,7 @@ export default function App() {
           config={hostelConfig} 
           bookings={bookings} 
           onOpenStudentDashboard={handleOpenStudentDashboard}
+          onOpenSelfRegistrationForm={() => setIsSelfRegistrationOpen(true)}
         />
 
         {/* Booking Form & Contact Section */}
@@ -364,6 +393,24 @@ export default function App() {
         onUpdateBooking={handleUpdateBooking}
       />
 
+      {/* New Student QR Self-Registration Modal (QR एडमिशन फॉर्म) */}
+      <StudentSelfRegistrationModal
+        isOpen={isSelfRegistrationOpen}
+        onClose={() => {
+          setIsSelfRegistrationOpen(false);
+          if (
+            window.location.search.includes('self-register') || 
+            window.location.search.includes('register') || 
+            window.location.hash.includes('self-register') ||
+            window.location.hash.includes('register')
+          ) {
+            window.history.replaceState(null, '', window.location.pathname);
+          }
+        }}
+        config={hostelConfig}
+        onAddBooking={handleAddBooking}
+      />
+
       {/* Website Rating Modal */}
       <WebsiteRatingModal
         isOpen={isRateWebsiteOpen}
@@ -383,6 +430,7 @@ export default function App() {
         onUpdateBooking={handleUpdateBooking}
         onResetAll={handleResetAll}
         onOpenStudentDashboard={handleOpenStudentDashboard}
+        onOpenSelfRegistrationForm={() => setIsSelfRegistrationOpen(true)}
       />
 
       {/* Simulated Email Confirmation Notification */}

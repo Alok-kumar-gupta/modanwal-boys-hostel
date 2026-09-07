@@ -46,7 +46,9 @@ import {
   Sparkles,
   Layers,
   GraduationCap,
-  Download
+  Download,
+  Bed,
+  Star
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BookingInquiry, HostelConfig, MaintenanceLog } from '../types';
@@ -54,6 +56,8 @@ import MaintenanceTab from './MaintenanceTab';
 import RentReminderModal from './RentReminderModal';
 import StudentRecordMaintainTab from './StudentRecordMaintainTab';
 import AutomatedRentEmailManager from './AutomatedRentEmailManager';
+import RoomVacancyManager from './RoomVacancyManager';
+import ReviewManagementTab from './ReviewManagementTab';
 import { getStudentRentApproachingStatus } from '../lib/rentEmailAutomation';
 import { subscribeToMaintenanceLogs } from '../lib/hostelService';
 
@@ -68,6 +72,7 @@ interface OwnerDashboardProps {
   onUpdateBooking: (updated: BookingInquiry) => void;
   onResetAll: () => void;
   onOpenStudentDashboard?: (studentId: string) => void;
+  onOpenSelfRegistrationForm?: () => void;
 }
 
 const DEFAULT_MESS_MENU = [
@@ -91,13 +96,21 @@ export default function OwnerDashboard({
   onUpdateBooking,
   onResetAll,
   onOpenStudentDashboard,
+  onOpenSelfRegistrationForm,
 }: OwnerDashboardProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const [activeTab, setActiveTab] = useState<'student-records' | 'auto-email' | 'bookings' | 'settings' | 'photos' | 'income-diary' | 'occupancy-insights' | 'maintenance'>('student-records');
+  const [activeTab, setActiveTab] = useState<'student-records' | 'room-vacancy' | 'auto-email' | 'bookings' | 'reviews' | 'settings' | 'photos' | 'income-diary' | 'occupancy-insights' | 'maintenance'>('student-records');
   const [expandedSection, setExpandedSection] = useState<'none' | 'about' | 'facilities' | 'tour' | 'faq' | 'proximity' | 'stats' | 'portal' | 'occupancy'>('none');
+
+  // Pending QR Self-Registration Admissions Count (Awaiting Caretaker Approval)
+  const pendingSelfRegistrationsCount = useMemo(() => {
+    return bookings.filter(
+      (b) => (b.inquiryType === 'self-register' || b.customNotes?.includes('QR')) && (b.status === 'pending' || b.ownerPermission === false)
+    ).length;
+  }, [bookings]);
 
   // Approaching Rent Count for automated notification badge
   const approachingRentCount = useMemo(() => {
@@ -1915,10 +1928,27 @@ export default function OwnerDashboard({
                     id="tab-student-records-trigger"
                   >
                     <Users className="w-4 h-4 text-indigo-600" />
-                    <span>छात्र रिकॉर्ड रजिस्टर (Student Records)</span>
+                    <span>Student Records</span>
                     <span className="bg-indigo-100 text-indigo-800 text-[10px] font-black px-2 py-0.5 rounded-full">
                       {bookings.length}
                     </span>
+                    {pendingSelfRegistrationsCount > 0 && (
+                      <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-bounce shadow-xs" title="Pending QR Self-Registrations">
+                        {pendingSelfRegistrationsCount} Pending
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('room-vacancy')}
+                    className={`py-3.5 px-2 text-xs sm:text-sm font-extrabold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTab === 'room-vacancy'
+                        ? 'border-emerald-600 text-emerald-700 bg-emerald-50/50'
+                        : 'border-transparent text-slate-500 hover:text-slate-800'
+                    }`}
+                    id="tab-room-vacancy-trigger"
+                  >
+                    <Bed className="w-4 h-4 text-emerald-600" />
+                    <span>Room Vacancy</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('auto-email')}
@@ -1930,10 +1960,10 @@ export default function OwnerDashboard({
                     id="tab-auto-email-trigger"
                   >
                     <Mail className="w-4 h-4 text-indigo-600" />
-                    <span>ऑटो ईमेल रिमाइंडर (Auto Rent Reminders)</span>
+                    <span>Auto Email & Reminders</span>
                     {approachingRentCount > 0 && (
                       <span className="bg-amber-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full animate-pulse">
-                        {approachingRentCount} देय
+                        {approachingRentCount} Due
                       </span>
                     )}
                   </button>
@@ -1946,10 +1976,22 @@ export default function OwnerDashboard({
                     }`}
                     id="tab-bookings-trigger"
                   >
-                    <span>ऑनलाइन पूछताछ (Inquiries)</span>
+                    <span>Inquiries</span>
                     <span className="bg-slate-100 text-slate-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                       {filteredBookings.length}
                     </span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('reviews')}
+                    className={`py-3.5 px-2 text-xs sm:text-sm font-extrabold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTab === 'reviews'
+                        ? 'border-amber-500 text-amber-900 bg-amber-50/50'
+                        : 'border-transparent text-slate-500 hover:text-slate-800'
+                    }`}
+                    id="tab-reviews-trigger"
+                  >
+                    <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                    <span>Reviews & Moderation</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('settings')}
@@ -1960,7 +2002,7 @@ export default function OwnerDashboard({
                     }`}
                     id="tab-settings-trigger"
                   >
-                    Change Hostel Details & Prices
+                    Hostel Settings
                   </button>
                   <button
                     onClick={() => setActiveTab('photos')}
@@ -1971,7 +2013,7 @@ export default function OwnerDashboard({
                     }`}
                     id="tab-photos-trigger"
                   >
-                    Upload Room Photos (फ़ोटो अपलोड)
+                    Room Photos
                   </button>
                   <button
                     onClick={() => setActiveTab('income-diary')}
@@ -1983,7 +2025,7 @@ export default function OwnerDashboard({
                     id="tab-income-diary-trigger"
                   >
                     <BookOpen className="w-4 h-4 text-primary-500" />
-                    <span>Income & Student Diary (कमाई व बच्चों की डायरी)</span>
+                    <span>Daily Ledger & Accounts</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('occupancy-insights')}
@@ -1995,7 +2037,7 @@ export default function OwnerDashboard({
                     id="tab-occupancy-insights-trigger"
                   >
                     <TrendingUp className="w-4 h-4 text-emerald-500" />
-                    <span>Occupancy Insights (बुकिंग और ऑक्यूपेंसी)</span>
+                    <span>Occupancy & Insights</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('maintenance')}
@@ -2007,7 +2049,7 @@ export default function OwnerDashboard({
                     id="tab-maintenance-trigger"
                   >
                     <Wrench className="w-4 h-4 text-amber-500" />
-                    <span>Maintenance Log (मरम्मत लॉग)</span>
+                    <span>Maintenance</span>
                     {pendingMaintenanceCount > 0 && (
                       <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full flex items-center gap-1 ${
                         studentPendingMaintenanceCount > 0 
@@ -2067,6 +2109,22 @@ export default function OwnerDashboard({
                     onOpenStudentDashboard={onOpenStudentDashboard}
                     onOpenRentReminders={handleOpenRentReminders}
                     onOpenAutoEmailManager={() => setActiveTab('auto-email')}
+                    onOpenSelfRegistrationForm={onOpenSelfRegistrationForm}
+                    onUpdateConfig={onConfigChange}
+                  />
+                )}
+
+                {/* TAB ROOM VACANCY: ROOM MATRIX & VACANCY TRACKER (कमरा खाली/भरा स्टेटस) */}
+                {activeTab === 'room-vacancy' && (
+                  <RoomVacancyManager
+                    bookings={bookings}
+                    config={config}
+                    onUpdateBooking={onUpdateBooking}
+                    onUpdateConfig={onConfigChange}
+                    onOpenStudentDashboard={onOpenStudentDashboard}
+                    onAddStudentToRoom={(roomNum, roomType) => {
+                      setActiveTab('student-records');
+                    }}
                   />
                 )}
 
@@ -6453,6 +6511,10 @@ export default function OwnerDashboard({
                     </div>
                   );
                 })()}
+
+                {activeTab === 'reviews' && (
+                  <ReviewManagementTab config={config} />
+                )}
 
                 {activeTab === 'maintenance' && (
                   <MaintenanceTab />

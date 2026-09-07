@@ -28,7 +28,9 @@ import {
   Info,
   ChevronRight,
   Sparkles,
-  Receipt
+  Receipt,
+  Lock,
+  EyeOff
 } from 'lucide-react';
 import { BookingInquiry, HostelConfig, PaymentRecord } from '../types';
 import { printDocumentSheet } from '../lib/pdfExportUtil';
@@ -295,6 +297,26 @@ export default function PaymentHistorySection({
         </div>
       </div>
 
+      {/* ================= PRIVACY ALERT BANNER IF AMOUNT IS PROTECTED ================= */}
+      {!student.allowViewRentAmount && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 p-4 rounded-2xl flex items-start gap-3 shadow-xs">
+          <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <Lock className="w-5 h-5" />
+          </div>
+          <div className="space-y-1">
+            <h4 className="font-extrabold text-xs text-amber-950 flex items-center gap-1.5">
+              <span>🔒 किराया व वित्तीय राशि गोपनीय रखी गई है (Fee Amount Protected)</span>
+              <span className="bg-amber-200 text-amber-900 text-[10px] font-black px-2 py-0.2 rounded-md">
+                अनुमति अपेक्षित
+              </span>
+            </h4>
+            <p className="text-[11px] text-amber-800 leading-relaxed">
+              हॉस्टल प्रबंधन नीति के अनुसार, आपके छात्र पोर्टल में किराए की राशि केवल <strong>केयरटेकर द्वारा विशेष अनुमति</strong> दिए जाने पर ही दिखाई देती है। यदि आपको राशि देखनी है, तो कृपया केयरटेकर से अनुमति प्राप्त करें।
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ================= TRANSPARENCY KPI STATS ================= */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         
@@ -305,7 +327,7 @@ export default function PaymentHistorySection({
           </span>
           <div className="flex items-baseline gap-1.5">
             <span className="font-display font-black text-xl sm:text-2xl text-emerald-700 font-mono">
-              ₹{totalPaidAmount.toLocaleString('en-IN')}
+              {student.allowViewRentAmount ? `₹${totalPaidAmount.toLocaleString('en-IN')}` : '🔒 सुरक्षित'}
             </span>
           </div>
           <span className="text-[10px] text-slate-400 flex items-center gap-1">
@@ -332,7 +354,7 @@ export default function PaymentHistorySection({
             </span>
           </div>
           <span className="text-[10px] text-slate-500 block font-mono">
-            ₹{rentAmount} • Due day: {rentDueDay}th
+            {student.allowViewRentAmount ? `₹${rentAmount} • ` : '🔒 राशि सुरक्षित • '}Due day: {rentDueDay}th
           </span>
         </div>
 
@@ -343,7 +365,7 @@ export default function PaymentHistorySection({
           </span>
           <div className="flex items-baseline gap-1.5">
             <span className="font-display font-black text-xl sm:text-2xl text-slate-900 font-mono">
-              ₹{depositAmount.toLocaleString('en-IN')}
+              {student.allowViewRentAmount ? `₹${depositAmount.toLocaleString('en-IN')}` : '🔒 सुरक्षित'}
             </span>
           </div>
           <span className="text-[10px] text-emerald-700 font-bold block">
@@ -360,11 +382,11 @@ export default function PaymentHistorySection({
             <span className={`font-display font-black text-xl sm:text-2xl font-mono ${
               totalPendingAmount > 0 ? 'text-rose-600' : 'text-slate-800'
             }`}>
-              ₹{totalPendingAmount.toLocaleString('en-IN')}
+              {student.allowViewRentAmount ? `₹${totalPendingAmount.toLocaleString('en-IN')}` : '🔒 सुरक्षित'}
             </span>
           </div>
           <span className="text-[10px] text-slate-400 block">
-            {totalPendingAmount === 0 ? '✓ No Dues (कोई बकाया नहीं)' : `${totalPendingTransactionsCount} भुगतान लंबित`}
+            {totalPendingAmount === 0 ? '✓ No Dues (कोई बकाया नहीं)' : `${totalPendingTransactionsCount} भुगतान स्थिति`}
           </span>
         </div>
 
@@ -590,9 +612,15 @@ export default function PaymentHistorySection({
                     {/* Amount */}
                     <div className="text-left md:text-right">
                       <span className="text-[10px] font-bold text-slate-400 uppercase block">Amount</span>
-                      <span className="font-display font-black text-lg sm:text-xl text-slate-900 font-mono">
-                        ₹{item.amount.toLocaleString('en-IN')}
-                      </span>
+                      {student.allowViewRentAmount ? (
+                        <span className="font-display font-black text-lg sm:text-xl text-slate-900 font-mono">
+                          ₹{item.amount.toLocaleString('en-IN')}
+                        </span>
+                      ) : (
+                        <span className="text-xs font-bold text-slate-400 italic bg-slate-100 px-2 py-1 rounded-lg">
+                          🔒 अधिकृत नहीं
+                        </span>
+                      )}
                     </div>
 
                     {/* Actions */}
@@ -620,7 +648,11 @@ export default function PaymentHistorySection({
                             </button>
                           )}
                           <a
-                            href={`https://wa.me/${config.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`नमस्ते! मैं ${student.fullName} (कमरा: ${student.roomNumber || 'आवंटित'})। मेरा ${item.month} का किराया ₹${item.amount} के संबंध में संपर्क कर रहा हूँ।`)}`}
+                            href={`https://wa.me/${config.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                              student.allowViewRentAmount
+                                ? `नमस्ते! मैं ${student.fullName} (कमरा: ${student.roomNumber || 'आवंटित'})। मेरा ${item.month} का किराया ₹${item.amount} के संबंध में संपर्क कर रहा हूँ।`
+                                : `नमस्ते! मैं ${student.fullName} (कमरा: ${student.roomNumber || 'आवंटित'})। मेरा ${item.month} के किराया भुगतान सत्यापन के संबंध में संपर्क कर रहा हूँ।`
+                            )}`}
                             target="_blank"
                             rel="noreferrer"
                             className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl border border-emerald-200 transition-colors"

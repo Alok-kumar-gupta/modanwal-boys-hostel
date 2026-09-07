@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Home, User, Users, MapPin, Navigation, Compass } from 'lucide-react';
+import { Home, User, Users, MapPin, Navigation, Compass, Sparkles, BedDouble } from 'lucide-react';
 import { motion } from 'motion/react';
 import { HostelConfig } from '../types';
 
@@ -13,8 +13,9 @@ interface AboutProps {
 }
 
 export default function About({ config }: AboutProps) {
-  const [selectedRoomTab, setSelectedRoomTab] = useState<'single' | 'twin'>(() => {
+  const [selectedRoomTab, setSelectedRoomTab] = useState<'single' | 'twin' | 'full'>(() => {
     if (config.hideSingleOccupancy && !config.hideTwinSharing) return 'twin';
+    if (config.hideSingleOccupancy && config.hideTwinSharing && !config.hideFullRoomOccupancy) return 'full';
     return 'single';
   });
 
@@ -42,6 +43,14 @@ export default function About({ config }: AboutProps) {
     'Shared utility shelves & multiple charging sockets',
   ];
 
+  const defaultFullRoomFeatures = [
+    'Complete Entire Private Room (निजी पूरा कमra)',
+    'Dual/King Size Bedding or 2 Single Beds (Single Resident Use)',
+    'Full Executive Study Setup & Multiple Wardrobes',
+    'Maximum Privacy & Quiet Ambience for Higher Studies',
+    'Direct Window Ventilation & Personalized Room Key',
+  ];
+
   const roomDetails = {
     single: {
       title: 'Single Occupancy Room',
@@ -58,6 +67,14 @@ export default function About({ config }: AboutProps) {
       desc: 'Our companion rooms are perfect for sharing with friends or classmate peers. Designed with balanced layout separations, ensuring both residents enjoy equal comfort, individual storage, and independent study desks.',
       amenities: config.aboutTwinFeatures && config.aboutTwinFeatures.length > 0 ? config.aboutTwinFeatures : defaultTwinFeatures,
       pricing: config.twinRoomRent === 0 ? '₹00 / month' : `₹${config.twinRoomRent} / month`,
+    },
+    full: {
+      title: 'Full Private Room (निजी पूरा कमरा)',
+      subtitle: 'Entire Private Room Dedicated to You',
+      icon: BedDouble,
+      desc: 'Book the entire full room exclusively for yourself without sharing. Enjoy absolute personal freedom, extra space, multiple study tables, and large storage for total privacy and focus.',
+      amenities: config.aboutFullFeatures && config.aboutFullFeatures.length > 0 ? config.aboutFullFeatures : defaultFullRoomFeatures,
+      pricing: (config.fullRoomRent === 0 || !config.fullRoomRent) ? '₹00 / month' : `₹${config.fullRoomRent} / month`,
     },
   };
 
@@ -185,34 +202,48 @@ export default function About({ config }: AboutProps) {
               </h3>
               
               {/* Tabs for Room selection */}
-              {(!config.hideSingleOccupancy || !config.hideTwinSharing) && (
-                <div className="flex bg-slate-100 p-1 rounded-full mb-6">
+              {(!config.hideSingleOccupancy || !config.hideTwinSharing || !config.hideFullRoomOccupancy) && (
+                <div className="flex bg-slate-100 p-1 rounded-2xl sm:rounded-full mb-6 flex-wrap sm:flex-nowrap gap-1">
                   {!config.hideSingleOccupancy && (
                     <button
                       onClick={() => setSelectedRoomTab('single')}
-                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-sm font-semibold transition-all cursor-pointer ${
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl sm:rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                         selectedRoomTab === 'single'
                           ? 'bg-slate-900 text-white shadow-sm'
                           : 'text-slate-600 hover:text-slate-900'
                       }`}
                       id="tab-single"
                     >
-                      <User className="w-4 h-4" />
-                      <span>Single Room (1-Seater)</span>
+                      <User className="w-3.5 h-3.5" />
+                      <span>Single Room</span>
                     </button>
                   )}
                   {!config.hideTwinSharing && (
                     <button
                       onClick={() => setSelectedRoomTab('twin')}
-                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-sm font-semibold transition-all cursor-pointer ${
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl sm:rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                         selectedRoomTab === 'twin'
                           ? 'bg-slate-900 text-white shadow-sm'
                           : 'text-slate-600 hover:text-slate-900'
                       }`}
                       id="tab-twin"
                     >
-                      <Users className="w-4 h-4" />
-                      <span>Twin-Sharing (2-Seater)</span>
+                      <Users className="w-3.5 h-3.5" />
+                      <span>Twin-Sharing</span>
+                    </button>
+                  )}
+                  {!config.hideFullRoomOccupancy && (
+                    <button
+                      onClick={() => setSelectedRoomTab('full')}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl sm:rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                        selectedRoomTab === 'full'
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      id="tab-full"
+                    >
+                      <BedDouble className="w-3.5 h-3.5" />
+                      <span>Full Room (निजी)</span>
                     </button>
                   )}
                 </div>
@@ -246,6 +277,23 @@ export default function About({ config }: AboutProps) {
                         </div>
                       </div>
                     )
+                  ) : selectedRoomTab === 'full' ? (
+                    config.photoFull ? (
+                      <img 
+                        src={config.photoFull} 
+                        alt="Full Private Room" 
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-950 flex flex-col justify-between p-6">
+                        <div className="text-white/40 text-[10px] font-mono uppercase tracking-wider">No Custom Full Room Photo Uploaded Yet</div>
+                        <div className="space-y-1 text-white">
+                          <span className="text-[10px] uppercase tracking-widest font-bold text-amber-400">Full Private Room</span>
+                          <p className="font-display font-extrabold text-lg leading-tight">Complete Private Room (निजी पूरा कमरा)</p>
+                        </div>
+                      </div>
+                    )
                   ) : (
                     config.photoTwin ? (
                       <img 
@@ -273,6 +321,12 @@ export default function About({ config }: AboutProps) {
                       {/* Room Occupancy Status Badge */}
                       {selectedRoomTab === 'single' ? (
                         config.isSingleFull ? (
+                          <span className="text-[10px] font-black tracking-wide text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded uppercase font-mono">Full (भरी हुई)</span>
+                        ) : (
+                          <span className="text-[10px] font-black tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded uppercase font-mono">Available (उपलब्ध)</span>
+                        )
+                      ) : selectedRoomTab === 'full' ? (
+                        config.isFullRoomFull ? (
                           <span className="text-[10px] font-black tracking-wide text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded uppercase font-mono">Full (भरी हुई)</span>
                         ) : (
                           <span className="text-[10px] font-black tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded uppercase font-mono">Available (उपलब्ध)</span>

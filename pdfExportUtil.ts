@@ -604,7 +604,7 @@ export function generateRentReceiptPDF(
   };
 
   drawReceiptRow('Resident Name:', student.fullName || 'Student Resident', false);
-  drawReceiptRow('Room Allotted:', `${student.roomNumber || 'Room Assigned'} (${student.roomType === 'single' ? 'Single Private Room' : 'Twin Sharing Room'})`, true);
+  drawReceiptRow('Room Allotted:', `${student.roomNumber || 'Room Assigned'} (${student.roomType === 'single' ? 'Single Private Room' : student.roomType === 'full' ? 'Full Private Room' : 'Twin Sharing Room'})`, true);
   drawReceiptRow('Contact Phone:', student.phone || 'N/A', false);
   drawReceiptRow('Payment For / Month:', record.month || 'Monthly Rent', true);
   drawReceiptRow('Payment Mode:', (record.paymentMode || 'UPI / Bank Transfer').toUpperCase(), false);
@@ -1039,9 +1039,10 @@ export async function drawIdCardToCanvas(
       }
     }
 
+    const roomTypeBadge = student.roomType === 'single' ? 'Single AC' : student.roomType === 'full' ? 'Full Room' : 'Twin Seater';
     const col1Data = [
       { lbl: 'Student UID:', val: studentUid, isAccent: true },
-      { lbl: 'Allotted Room:', val: `Room ${student.roomNumber || '101'} (${student.roomType === 'single' ? 'Single AC' : 'Twin Seater'})`, isAccent: true },
+      { lbl: 'Allotted Room:', val: `Room ${student.roomNumber || '101'} (${roomTypeBadge})`, isAccent: true },
       { lbl: 'Course / Branch:', val: courseName },
       { lbl: 'Admission Date:', val: entryDateFormatted, isAccent: true },
     ];

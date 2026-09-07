@@ -21,7 +21,8 @@ import {
   IdCard,
   Wrench,
   Utensils,
-  FileCheck2
+  FileCheck2,
+  QrCode
 } from 'lucide-react';
 import { BookingInquiry, HostelConfig } from '../types';
 
@@ -29,9 +30,10 @@ interface StudentPortalProps {
   config: HostelConfig;
   bookings: BookingInquiry[];
   onOpenStudentDashboard?: (studentId?: string) => void;
+  onOpenSelfRegistrationForm?: () => void;
 }
 
-export default function StudentPortal({ config, bookings, onOpenStudentDashboard }: StudentPortalProps) {
+export default function StudentPortal({ config, bookings, onOpenStudentDashboard, onOpenSelfRegistrationForm }: StudentPortalProps) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [searched, setSearched] = useState(false);
   const [matchedStudent, setMatchedStudent] = useState<BookingInquiry | null>(null);
@@ -203,13 +205,25 @@ export default function StudentPortal({ config, bookings, onOpenStudentDashboard
                     )}
                   </div>
                 ) : (
-                  <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-center space-y-1">
+                  <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-center space-y-2">
                     <p className="text-xs font-bold text-rose-800 dark:text-rose-300">
-                      कोई रिकॉर्ड नहीं मिला
+                      कोई रिकॉर्ड नहीं मिला (No Record Found)
                     </p>
                     <p className="text-[11px] text-rose-600 dark:text-rose-400">
                       कृपया वही नंबर डालें जिससे आपने हॉस्टल में आवेदन किया था।
                     </p>
+                    {onOpenSelfRegistrationForm && (
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={onOpenSelfRegistrationForm}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          <span>नए छात्र एडमिशन फॉर्म भरें (New Admission Form)</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

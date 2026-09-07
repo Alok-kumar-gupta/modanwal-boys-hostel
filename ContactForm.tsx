@@ -10,7 +10,7 @@ import { HostelConfig, BookingInquiry } from '../types';
 import HostelMap from './HostelMap';
 
 interface PreConfigType {
-  roomType: 'single' | 'twin';
+  roomType: 'single' | 'twin' | 'full';
   tenure: string;
   addons: string[];
   totalMonthly: number;
@@ -29,7 +29,7 @@ export default function ContactForm({ preConfig, onClearPreConfig, config, onAdd
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [roomType, setRoomType] = useState<'single' | 'twin'>(preConfig ? preConfig.roomType : 'single');
+  const [roomType, setRoomType] = useState<'single' | 'twin' | 'full'>(preConfig ? preConfig.roomType : 'single');
   const [studyYear, setStudyYear] = useState('1st Year');
   const [checkInDate, setCheckInDate] = useState('');
   const [notes, setNotes] = useState('');
@@ -40,18 +40,18 @@ export default function ContactForm({ preConfig, onClearPreConfig, config, onAdd
 
   // QR Payment Widget State
   const [payType, setPayType] = useState<'deposit' | 'rent'>('deposit');
-  const [payRoom, setPayRoom] = useState<'single' | 'twin'>('single');
+  const [payRoom, setPayRoom] = useState<'single' | 'twin' | 'full'>('single');
   const [payStudentName, setPayStudentName] = useState('');
   const [payStudentPhone, setPayStudentPhone] = useState('');
   const [customAmount, setCustomAmount] = useState('');
 
   // Preset amount based on selection
   const presetAmount = payType === 'deposit'
-    ? (payRoom === 'single' ? (config.singleRoomDeposit ?? 3000) : (config.twinRoomDeposit ?? 2000))
-    : (payRoom === 'single' ? (config.singleRoomRent || 4500) : (config.twinRoomRent || 3000));
+    ? (payRoom === 'single' ? (config.singleRoomDeposit ?? 3000) : payRoom === 'full' ? (config.fullRoomDeposit ?? 3500) : (config.twinRoomDeposit ?? 2000))
+    : (payRoom === 'single' ? (config.singleRoomRent || 4500) : payRoom === 'full' ? (config.fullRoomRent || 5500) : (config.twinRoomRent || 3000));
 
   const activeAmount = customAmount ? parseFloat(customAmount) || presetAmount : presetAmount;
-  const paymentNote = `${payStudentName || 'Student'} ${payType === 'deposit' ? 'Dep' : 'Rent'} ${payRoom === 'single' ? 'Sing' : 'Twin'}`.slice(0, 30);
+  const paymentNote = `${payStudentName || 'Student'} ${payType === 'deposit' ? 'Dep' : 'Rent'} ${payRoom === 'single' ? 'Sing' : payRoom === 'full' ? 'Full' : 'Twin'}`.slice(0, 30);
 
   // UPI deep link
   const finalUpiId = config.upiId || 'alokkumarguptabst@okaxis';
@@ -66,7 +66,7 @@ export default function ContactForm({ preConfig, onClearPreConfig, config, onAdd
     text += `• *Student Name:* ${payStudentName || 'Not specified'}%0A`;
     text += `• *Student Phone:* ${payStudentPhone || 'Not specified'}%0A`;
     text += `• *Payment Type:* ${payType === 'deposit' ? 'SECURITY DEPOSIT' : 'MONTHLY RENT'}%0A`;
-    text += `• *Room Type:* ${payRoom === 'single' ? 'Single Occupancy' : 'Twin Sharing'}%0A`;
+    text += `• *Room Type:* ${payRoom === 'single' ? 'Single Occupancy' : payRoom === 'full' ? 'Full Private Room' : 'Twin Sharing'}%0A`;
     text += `• *Amount Paid:* ₹${activeAmount}%0A`;
     text += `• *Transaction Note:* ${paymentNote}%0A%0A`;
     text += `I have scanned the QR code and paid. Please verify and issue my receipt!`;
@@ -374,28 +374,39 @@ export default function ContactForm({ preConfig, onClearPreConfig, config, onAdd
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
                           Preferred Room
                         </label>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-3 gap-1.5">
                           <button
                             type="button"
                             onClick={() => setRoomType('single')}
-                            className={`py-2.5 px-3 rounded-xl text-xs font-semibold text-center border-2 transition-all cursor-pointer ${
+                            className={`py-2 px-1.5 rounded-xl text-xs font-semibold text-center border-2 transition-all cursor-pointer truncate ${
                               roomType === 'single'
                                 ? 'border-slate-900 bg-white text-slate-950 font-bold'
                                 : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500'
                             }`}
                           >
-                            Single Seater
+                            Single
                           </button>
                           <button
                             type="button"
                             onClick={() => setRoomType('twin')}
-                            className={`py-2.5 px-3 rounded-xl text-xs font-semibold text-center border-2 transition-all cursor-pointer ${
+                            className={`py-2 px-1.5 rounded-xl text-xs font-semibold text-center border-2 transition-all cursor-pointer truncate ${
                               roomType === 'twin'
                                 ? 'border-slate-900 bg-white text-slate-950 font-bold'
                                 : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500'
                             }`}
                           >
-                            Twin Sharing
+                            Twin
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRoomType('full')}
+                            className={`py-2 px-1.5 rounded-xl text-xs font-semibold text-center border-2 transition-all cursor-pointer truncate ${
+                              roomType === 'full'
+                                ? 'border-slate-900 bg-white text-slate-950 font-bold'
+                                : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500'
+                            }`}
+                          >
+                            Full Room
                           </button>
                         </div>
                       </div>
@@ -737,29 +748,40 @@ export default function ContactForm({ preConfig, onClearPreConfig, config, onAdd
                     </button>
                   </div>
 
-                  {/* Sub-Selection: Single or Twin sharing presets */}
-                  <div className="grid grid-cols-2 gap-2">
+                  {/* Sub-Selection: Single, Twin, or Full room presets */}
+                  <div className="grid grid-cols-3 gap-1.5">
                     <button
                       type="button"
                       onClick={() => setPayRoom('single')}
-                      className={`py-1.5 px-2 rounded-lg text-[10px] font-semibold text-center border transition-all cursor-pointer ${
+                      className={`py-1.5 px-2 rounded-lg text-[10px] font-semibold text-center border transition-all cursor-pointer truncate ${
                         payRoom === 'single'
                           ? 'border-slate-800 bg-slate-950 text-white font-bold'
                           : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500'
                       }`}
                     >
-                      Single Occupancy
+                      Single
                     </button>
                     <button
                       type="button"
                       onClick={() => setPayRoom('twin')}
-                      className={`py-1.5 px-2 rounded-lg text-[10px] font-semibold text-center border transition-all cursor-pointer ${
+                      className={`py-1.5 px-2 rounded-lg text-[10px] font-semibold text-center border transition-all cursor-pointer truncate ${
                         payRoom === 'twin'
                           ? 'border-slate-800 bg-slate-950 text-white font-bold'
                           : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500'
                       }`}
                     >
-                      Twin Sharing
+                      Twin
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPayRoom('full')}
+                      className={`py-1.5 px-2 rounded-lg text-[10px] font-semibold text-center border transition-all cursor-pointer truncate ${
+                        payRoom === 'full'
+                          ? 'border-slate-800 bg-slate-950 text-white font-bold'
+                          : 'border-slate-200 bg-white hover:border-slate-300 text-slate-500'
+                      }`}
+                    >
+                      Full Room
                     </button>
                   </div>
                 </div>

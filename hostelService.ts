@@ -1,6 +1,6 @@
 import { doc, collection, onSnapshot, setDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
-import { BookingInquiry, HostelConfig, Testimonial, MaintenanceLog } from '../types';
+import { BookingInquiry, HostelConfig, Testimonial, MaintenanceLog, DailyLedgerEntry } from '../types';
 
 const CONFIG_DOC_PATH = 'config/settings';
 const SYSTEM_STATE_DOC = 'config/system_state';
@@ -53,9 +53,12 @@ export function subscribeToHostelConfig(
         await setDoc(docRef, cleanFirestorePayload(defaultConfig));
         onUpdate(defaultConfig);
       } catch (err) {
-        console.error('Failed to initialize default config in Firestore:', err);
+        console.warn('Failed to initialize default config in Firestore:', err);
       }
     }
+  }, (err) => {
+    console.warn('Hostel config subscription (offline/reconnecting):', err);
+    onUpdate(defaultConfig);
   });
 }
 
@@ -77,7 +80,7 @@ export function subscribeToBookings(
       }
       const bookingsList: BookingInquiry[] = [];
       snapshot.forEach((docSnap) => {
-        bookingsList.push({ id: docSnap.id, ...docSnap.data() } as BookingInquiry);
+        bookingsList.push({ ...(docSnap.data() as any), id: docSnap.id } as BookingInquiry);
       });
       // Sort by timestamp or ID to keep latest on top if timestamp exists
       bookingsList.sort((a, b) => {
@@ -123,10 +126,13 @@ export function subscribeToBookings(
         }
         onUpdate(seedBookings);
       } catch (err) {
-        console.error('Failed to handle empty bookings:', err);
+        console.warn('Failed to handle empty bookings:', err);
         onUpdate([]);
       }
     }
+  }, (err) => {
+    console.warn('Bookings subscription (offline/reconnecting):', err);
+    onUpdate(seedBookings);
   });
 }
 
@@ -182,6 +188,36 @@ export async function deleteBookingInquiry(id: string): Promise<void> {
   }
 }
 
+// Local storage key for persistent hidden reviews state
+const HIDDEN_TESTIMONIALS_KEY = 'mbh_hidden_testimonials';
+
+export function getLocallyHiddenTestimonialIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem(HIDDEN_TESTIMONIALS_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function updateLocalHiddenCache(id: string, hidden: boolean) {
+  if (typeof window === 'undefined') return;
+  try {
+    const ids = getLocallyHiddenTestimonialIds();
+    if (hidden) {
+      ids.add(id);
+    } else {
+      ids.delete(id);
+    }
+    localStorage.setItem(HIDDEN_TESTIMONIALS_KEY, JSON.stringify(Array.from(ids)));
+  } catch (e) {
+    // non-fatal
+  }
+}
+
 /**
  * Subscribes to real-time updates of testimonials.
  */
@@ -197,9 +233,12 @@ export function subscribeToTestimonials(
       if (typeof window !== 'undefined') {
         localStorage.setItem('mbh_testimonials_seeded', 'true');
       }
+      const localHidden = getLocallyHiddenTestimonialIds();
       const testimonialsList: Testimonial[] = [];
       snapshot.forEach((docSnap) => {
-        testimonialsList.push({ id: docSnap.id, ...docSnap.data() } as Testimonial);
+        const data = docSnap.data() as any;
+        const isHidden = data.hidden === true || String(data.hidden) === 'true' || localHidden.has(docSnap.id);
+        testimonialsList.push({ ...data, id: docSnap.id, hidden: isHidden } as Testimonial);
       });
       // Sort: newest first
       testimonialsList.sort((a, b) => {
@@ -234,10 +273,13 @@ export function subscribeToTestimonials(
         }
         onUpdate(seedTestimonials);
       } catch (err) {
-        console.error('Failed to handle empty testimonials:', err);
+        console.warn('Failed to handle empty testimonials:', err);
         onUpdate([]);
       }
     }
+  }, (err) => {
+    console.warn('Testimonials subscription (offline/reconnecting):', err);
+    onUpdate(seedTestimonials);
   });
 }
 
@@ -251,15 +293,58 @@ export async function addTestimonial(testimonial: Testimonial): Promise<void> {
 }
 
 /**
+ * Updates an existing testimonial.
+ */
+export async function updateTestimonial(testimonial: Testimonial): Promise<void> {
+  testimonialsInitializedInMemory = true;
+  const docRef = doc(db, TESTIMONIALS_COLLECTION, testimonial.id);
+  await setDoc(docRef, cleanFirestorePayload(testimonial), { merge: true });
+}
+
+/**
+ * Sets the hidden state of a testimonial.
+ */
+export async function setTestimonialHidden(id: string, hidden: boolean): Promise<void> {
+  testimonialsInitializedInMemory = true;
+  updateLocalHiddenCache(id, hidden);
+  const docRef = doc(db, TESTIMONIALS_COLLECTION, id);
+  await setDoc(docRef, { hidden }, { merge: true });
+}
+
+/**
+ * Toggles the hidden state of a testimonial.
+ */
+export async function toggleHideTestimonial(id: string, currentHidden: boolean): Promise<void> {
+  const newHidden = !currentHidden;
+  await setTestimonialHidden(id, newHidden);
+}
+
+/**
  * Deletes a testimonial from Firestore.
  */
 export async function deleteTestimonial(id: string): Promise<void> {
   testimonialsInitializedInMemory = true;
+  updateLocalHiddenCache(id, false);
   if (typeof window !== 'undefined') {
     localStorage.setItem('mbh_testimonials_seeded', 'true');
   }
   const docRef = doc(db, TESTIMONIALS_COLLECTION, id);
   await deleteDoc(docRef);
+}
+
+/**
+ * Deletes all testimonials from Firestore (e.g. to clear fake reviews).
+ */
+export async function deleteAllTestimonials(testimonials: Testimonial[]): Promise<void> {
+  testimonialsInitializedInMemory = true;
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('mbh_testimonials_seeded', 'true');
+    localStorage.removeItem(HIDDEN_TESTIMONIALS_KEY);
+  }
+  for (const t of testimonials) {
+    const docRef = doc(db, TESTIMONIALS_COLLECTION, t.id);
+    await deleteDoc(docRef);
+  }
 }
 
 /**
@@ -279,7 +364,7 @@ export function subscribeToMaintenanceLogs(
       }
       const logsList: MaintenanceLog[] = [];
       snapshot.forEach((docSnap) => {
-        logsList.push({ id: docSnap.id, ...docSnap.data() } as MaintenanceLog);
+        logsList.push({ ...(docSnap.data() as any), id: docSnap.id } as MaintenanceLog);
       });
       // Sort: newest reported date first
       logsList.sort((a, b) => {
@@ -314,10 +399,13 @@ export function subscribeToMaintenanceLogs(
         }
         onUpdate(seedLogs);
       } catch (err) {
-        console.error('Failed to handle empty maintenance logs:', err);
+        console.warn('Failed to handle empty maintenance logs:', err);
         onUpdate([]);
       }
     }
+  }, (err) => {
+    console.warn('Maintenance logs subscription (offline/reconnecting):', err);
+    onUpdate(seedLogs);
   });
 }
 
@@ -355,7 +443,7 @@ export function subscribeToTokens(
   return onSnapshot(colRef, (snapshot) => {
     const list: any[] = [];
     snapshot.forEach((docSnap) => {
-      list.push({ id: docSnap.id, ...docSnap.data() });
+      list.push({ ...(docSnap.data() as any), id: docSnap.id });
     });
     list.sort((a, b) => (new Date(b.generatedAt || 0).getTime()) - (new Date(a.generatedAt || 0).getTime()));
     onUpdate(list);
@@ -390,7 +478,7 @@ export function subscribeToNotices(
   return onSnapshot(colRef, (snapshot) => {
     const list: any[] = [];
     snapshot.forEach((docSnap) => {
-      list.push({ id: docSnap.id, ...docSnap.data() });
+      list.push({ ...(docSnap.data() as any), id: docSnap.id });
     });
     list.sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
@@ -418,5 +506,107 @@ export async function deleteNotice(id: string): Promise<void> {
   const docRef = doc(db, NOTICES_COLLECTION, id);
   await deleteDoc(docRef);
 }
+
+// ----------------- DAILY CASH & LEDGER DATA SHEET MANAGEMENT -----------------
+const DAILY_LEDGER_COLLECTION = 'daily-ledger';
+
+export function subscribeToDailyLedger(
+  onUpdate: (entries: DailyLedgerEntry[]) => void
+): () => void {
+  const colRef = collection(db, DAILY_LEDGER_COLLECTION);
+  return onSnapshot(colRef, (snapshot) => {
+    const list: DailyLedgerEntry[] = [];
+    snapshot.forEach((docSnap) => {
+      list.push({ ...(docSnap.data() as any), id: docSnap.id } as DailyLedgerEntry);
+    });
+    // Sort descending by date, then by timestamp
+    list.sort((a, b) => {
+      const dateA = a.date || '';
+      const dateB = b.date || '';
+      if (dateB !== dateA) {
+        return dateB.localeCompare(dateA);
+      }
+      return (new Date(b.timestamp || 0).getTime()) - (new Date(a.timestamp || 0).getTime());
+    });
+    onUpdate(list);
+  }, (err) => {
+    console.warn('Daily ledger subscription error:', err);
+    // fallback to local storage
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('mbh_daily_ledger_entries');
+        if (saved) onUpdate(JSON.parse(saved));
+      } catch (e) {
+        onUpdate([]);
+      }
+    } else {
+      onUpdate([]);
+    }
+  });
+}
+
+export async function addDailyLedgerEntry(entry: DailyLedgerEntry): Promise<void> {
+  // Sync to Firestore
+  try {
+    const docRef = doc(db, DAILY_LEDGER_COLLECTION, entry.id);
+    await setDoc(docRef, cleanFirestorePayload(entry));
+  } catch (err) {
+    console.warn('Failed to save daily ledger entry to Firestore:', err);
+  }
+  // Also save to localStorage
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('mbh_daily_ledger_entries');
+      const list: DailyLedgerEntry[] = saved ? JSON.parse(saved) : [];
+      list.unshift(entry);
+      localStorage.setItem('mbh_daily_ledger_entries', JSON.stringify(list));
+    } catch (e) {
+      // non-fatal
+    }
+  }
+}
+
+export async function updateDailyLedgerEntry(entry: DailyLedgerEntry): Promise<void> {
+  try {
+    const docRef = doc(db, DAILY_LEDGER_COLLECTION, entry.id);
+    await setDoc(docRef, cleanFirestorePayload(entry), { merge: true });
+  } catch (err) {
+    console.warn('Failed to update daily ledger entry in Firestore:', err);
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('mbh_daily_ledger_entries');
+      if (saved) {
+        let list: DailyLedgerEntry[] = JSON.parse(saved);
+        list = list.map(item => item.id === entry.id ? entry : item);
+        localStorage.setItem('mbh_daily_ledger_entries', JSON.stringify(list));
+      }
+    } catch (e) {
+      // non-fatal
+    }
+  }
+}
+
+export async function deleteDailyLedgerEntry(id: string): Promise<void> {
+  try {
+    const docRef = doc(db, DAILY_LEDGER_COLLECTION, id);
+    await deleteDoc(docRef);
+  } catch (err) {
+    console.warn('Failed to delete daily ledger entry from Firestore:', err);
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('mbh_daily_ledger_entries');
+      if (saved) {
+        let list: DailyLedgerEntry[] = JSON.parse(saved);
+        list = list.filter(item => item.id !== id);
+        localStorage.setItem('mbh_daily_ledger_entries', JSON.stringify(list));
+      }
+    } catch (e) {
+      // non-fatal
+    }
+  }
+}
+
 
 

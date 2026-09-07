@@ -60,19 +60,22 @@ export default function Testimonials({ config }: TestimonialsProps) {
     return unsubscribe;
   }, []);
 
+  // Visible testimonials for public view (excluding any reviews marked hidden by caretaker/owner)
+  const visibleTestimonials = testimonials.filter(t => t.hidden !== true && String(t.hidden) !== 'true');
+
   // Filter Logic
-  const filteredTestimonials = testimonials.filter(t => 
+  const filteredTestimonials = visibleTestimonials.filter(t => 
     activeFilter === 'all' ? true : t.category === activeFilter
   );
 
   // Calculate Average Rating
-  const averageRating = testimonials.length > 0 
-    ? (testimonials.reduce((sum, t) => sum + t.rating, 0) / testimonials.length).toFixed(1)
+  const averageRating = visibleTestimonials.length > 0 
+    ? (visibleTestimonials.reduce((sum, t) => sum + t.rating, 0) / visibleTestimonials.length).toFixed(1)
     : '4.9';
 
   // Calculate star percentages for rating breakdown
   const starCounts = [0, 0, 0, 0, 0]; // 5, 4, 3, 2, 1 stars
-  testimonials.forEach(t => {
+  visibleTestimonials.forEach(t => {
     const idx = Math.max(1, Math.min(5, Math.round(t.rating))) - 1;
     starCounts[4 - idx] += 1;
   });

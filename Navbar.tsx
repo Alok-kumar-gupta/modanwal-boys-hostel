@@ -34,6 +34,7 @@ interface NavbarProps {
   config: HostelConfig;
   onOwnerClick: () => void;
   onStudentDashboardClick?: () => void;
+  onSelfRegistrationClick?: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onRateWebsiteClick?: () => void;
@@ -44,6 +45,7 @@ export default function Navbar({
   config, 
   onOwnerClick, 
   onStudentDashboardClick, 
+  onSelfRegistrationClick,
   theme, 
   onToggleTheme, 
   onRateWebsiteClick 
@@ -429,6 +431,34 @@ export default function Navbar({
                           </div>
                         </div>
                         <ChevronRight className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                      </button>
+                    )}
+
+                    {/* Self-Registration / QR Admission Button */}
+                    {onSelfRegistrationClick && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsOpen(false);
+                          onSelfRegistrationClick();
+                        }}
+                        className="w-full flex items-center justify-between p-3 rounded-2xl bg-emerald-50/70 hover:bg-emerald-100/80 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800/60 transition-all text-left cursor-pointer"
+                        id="drawer-self-registration-btn"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                            <Sparkles className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="text-xs sm:text-sm font-black text-emerald-950 dark:text-emerald-200">
+                              New Admission Form (छात्र स्व-पंजीकरण)
+                            </div>
+                            <div className="text-[10px] text-emerald-700/80 dark:text-emerald-300">
+                              QR कोड या ऑनलाइन फॉर्म द्वारा तत्काल प्रवेश
+                            </div>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                       </button>
                     )}
 

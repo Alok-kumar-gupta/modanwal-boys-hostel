@@ -11,7 +11,7 @@ import { HostelConfig } from '../types';
 
 interface RoomConfiguratorProps {
   onPreConfigure: (config: {
-    roomType: 'single' | 'twin';
+    roomType: 'single' | 'twin' | 'full';
     tenure: string;
     addons: string[];
     totalMonthly: number;
@@ -21,8 +21,9 @@ interface RoomConfiguratorProps {
 }
 
 export default function RoomConfigurator({ onPreConfigure, config }: RoomConfiguratorProps) {
-  const [roomType, setRoomType] = useState<'single' | 'twin'>(() => {
+  const [roomType, setRoomType] = useState<'single' | 'twin' | 'full'>(() => {
     if (config.hideSingleOccupancy && !config.hideTwinSharing) return 'twin';
+    if (config.hideSingleOccupancy && config.hideTwinSharing && !config.hideFullRoomOccupancy) return 'full';
     return 'single';
   });
 
@@ -43,11 +44,13 @@ export default function RoomConfigurator({ onPreConfigure, config }: RoomConfigu
   const baseRentMap = {
     single: config.singleRoomRent,
     twin: config.twinRoomRent,
+    full: config.fullRoomRent || 0,
   };
 
   const securityDepositMap = {
     single: config.singleRoomDeposit ?? 3000,
     twin: config.twinRoomDeposit ?? 2000,
+    full: config.fullRoomDeposit ?? 3500,
   };
 
   const tenureDiscountMap = {
@@ -150,30 +153,30 @@ export default function RoomConfigurator({ onPreConfigure, config }: RoomConfigu
               <label className="block text-sm font-bold text-slate-900 tracking-wide uppercase">
                 1. Select Room Setup
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {!config.hideSingleOccupancy && (
                   <button
                     onClick={() => setRoomType('single')}
-                    className={`flex items-start gap-4 p-5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                    className={`flex flex-col items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
                       roomType === 'single'
                         ? 'border-slate-900 bg-slate-50/55'
                         : 'border-slate-100 hover:border-slate-200 bg-white'
                     }`}
                   >
-                    <div className={`p-3 rounded-xl mt-0.5 ${roomType === 'single' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                      <Calculator className="w-5 h-5" />
+                    <div className={`p-2.5 rounded-xl ${roomType === 'single' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                      <Calculator className="w-4 h-4" />
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-slate-900">Single Room (1-Seater)</span>
+                        <span className="font-bold text-slate-900 text-sm">Single (1-Seater)</span>
                         {config.isSingleFull ? (
-                          <span className="text-[9px] font-black tracking-wide uppercase text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded">Full</span>
+                          <span className="text-[9px] font-black tracking-wide uppercase text-rose-700 bg-rose-50 border border-rose-100 px-1 py-0.5 rounded">Full</span>
                         ) : (
-                          <span className="text-[9px] font-black tracking-wide uppercase text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">Available</span>
+                          <span className="text-[9px] font-black tracking-wide uppercase text-emerald-700 bg-emerald-50 border border-emerald-100 px-1 py-0.5 rounded">Avail</span>
                         )}
                       </div>
-                      <span className="block text-xs text-slate-500 mt-0.5">Absolute privacy & zero sharing</span>
-                      <span className="block text-sm font-extrabold text-primary-700 mt-2">₹{baseRentMap.single}/month</span>
+                      <span className="block text-xs text-slate-500 mt-0.5">Absolute privacy</span>
+                      <span className="block text-sm font-extrabold text-primary-700 mt-2">₹{baseRentMap.single}/mo</span>
                     </div>
                   </button>
                 )}
@@ -181,26 +184,53 @@ export default function RoomConfigurator({ onPreConfigure, config }: RoomConfigu
                 {!config.hideTwinSharing && (
                   <button
                     onClick={() => setRoomType('twin')}
-                    className={`flex items-start gap-4 p-5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                    className={`flex flex-col items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
                       roomType === 'twin'
                         ? 'border-slate-900 bg-slate-50/55'
                         : 'border-slate-100 hover:border-slate-200 bg-white'
                     }`}
                   >
-                    <div className={`p-3 rounded-xl mt-0.5 ${roomType === 'twin' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                      <Calculator className="w-5 h-5" />
+                    <div className={`p-2.5 rounded-xl ${roomType === 'twin' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                      <Calculator className="w-4 h-4" />
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-slate-900">Twin Sharing (2-Seater)</span>
+                        <span className="font-bold text-slate-900 text-sm">Twin (2-Seater)</span>
                         {config.isTwinFull ? (
-                          <span className="text-[9px] font-black tracking-wide uppercase text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded">Full</span>
+                          <span className="text-[9px] font-black tracking-wide uppercase text-rose-700 bg-rose-50 border border-rose-100 px-1 py-0.5 rounded">Full</span>
                         ) : (
-                          <span className="text-[9px] font-black tracking-wide uppercase text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">Available</span>
+                          <span className="text-[9px] font-black tracking-wide uppercase text-emerald-700 bg-emerald-50 border border-emerald-100 px-1 py-0.5 rounded">Avail</span>
                         )}
                       </div>
-                      <span className="block text-xs text-slate-500 mt-0.5">Share with friend, spacious desk separation</span>
-                      <span className="block text-sm font-extrabold text-primary-700 mt-2">₹{baseRentMap.twin}/month</span>
+                      <span className="block text-xs text-slate-500 mt-0.5">Shared room</span>
+                      <span className="block text-sm font-extrabold text-primary-700 mt-2">₹{baseRentMap.twin}/mo</span>
+                    </div>
+                  </button>
+                )}
+
+                {!config.hideFullRoomOccupancy && (
+                  <button
+                    onClick={() => setRoomType('full')}
+                    className={`flex flex-col items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                      roomType === 'full'
+                        ? 'border-slate-900 bg-slate-50/55'
+                        : 'border-slate-100 hover:border-slate-200 bg-white'
+                    }`}
+                  >
+                    <div className={`p-2.5 rounded-xl ${roomType === 'full' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                      <Calculator className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-slate-900 text-sm">Full Room (निजी)</span>
+                        {config.isFullRoomFull ? (
+                          <span className="text-[9px] font-black tracking-wide uppercase text-rose-700 bg-rose-50 border border-rose-100 px-1 py-0.5 rounded">Full</span>
+                        ) : (
+                          <span className="text-[9px] font-black tracking-wide uppercase text-emerald-700 bg-emerald-50 border border-emerald-100 px-1 py-0.5 rounded">Avail</span>
+                        )}
+                      </div>
+                      <span className="block text-xs text-slate-500 mt-0.5">Entire private room</span>
+                      <span className="block text-sm font-extrabold text-primary-700 mt-2">₹{baseRentMap.full}/mo</span>
                     </div>
                   </button>
                 )}

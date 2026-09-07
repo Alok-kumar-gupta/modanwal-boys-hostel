@@ -33,10 +33,17 @@ import {
   Check,
   Mail,
   Clock,
-  RotateCcw
+  RotateCcw,
+  Bed,
+  QrCode,
+  Sparkles,
+  EyeOff
 } from 'lucide-react';
 import { BookingInquiry, HostelConfig, PaymentRecord } from '../types';
 import AutomatedRentEmailModal from './AutomatedRentEmailModal';
+import RoomVacancyManager from './RoomVacancyManager';
+import NewStudentRegistrationQrModal from './NewStudentRegistrationQrModal';
+import ReviewAdmissionApprovalModal from './ReviewAdmissionApprovalModal';
 import { getStudentRentApproachingStatus } from '../lib/rentEmailAutomation';
 import { triggerFileDownload } from '../lib/pdfExportUtil';
 
@@ -49,6 +56,8 @@ interface StudentRecordMaintainTabProps {
   onOpenStudentDashboard?: (studentId: string) => void;
   onOpenRentReminders?: (type: 'pending' | 'paid', specificId?: string | null) => void;
   onOpenAutoEmailManager?: () => void;
+  onOpenSelfRegistrationForm?: () => void;
+  onUpdateConfig?: (newConfig: HostelConfig) => void;
 }
 
 export default function StudentRecordMaintainTab({
@@ -59,10 +68,20 @@ export default function StudentRecordMaintainTab({
   onDeleteBooking,
   onOpenStudentDashboard,
   onOpenRentReminders,
-  onOpenAutoEmailManager
+  onOpenAutoEmailManager,
+  onOpenSelfRegistrationForm,
+  onUpdateConfig
 }: StudentRecordMaintainTabProps) {
+  // Active Sub-view inside this tab: 'roster' (Students list) vs 'room-matrix' (Room Vacancy & Allocation Matrix)
+  const [subView, setSubView] = useState<'roster' | 'room-matrix'>('roster');
+
   // Modal State for Add Student
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  // Modal State for New Student QR Poster
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  // Modal State for Caretaker Review & Approval
+  const [isReviewApprovalOpen, setIsReviewApprovalOpen] = useState(false);
+  const [selectedApprovalStudentId, setSelectedApprovalStudentId] = useState<string | null>(null);
   // Modal State for Edit/View Student
   const [editingStudent, setEditingStudent] = useState<BookingInquiry | null>(null);
   // Modal State for Automated Rent Email Preview & Send
@@ -97,6 +116,7 @@ export default function StudentRecordMaintainTab({
   const [newAadhar, setNewAadhar] = useState('');
   const [newCheckInDate, setNewCheckInDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newOwnerPermission, setNewOwnerPermission] = useState(true);
+  const [newAllowViewRentAmount, setNewAllowViewRentAmount] = useState(false);
   const [newNotes, setNewNotes] = useState('');
   const [formError, setFormError] = useState('');
   const [successToast, setSuccessToast] = useState('');
@@ -135,6 +155,38 @@ export default function StudentRecordMaintainTab({
       !currentlyPermitted
         ? `✓ ${student.fullName} को स्टूडेंट डैशबोर्ड की अनुमति दे दी गई है! (Permission Granted)`
         : `🔒 ${student.fullName} की स्टूडेंट डैशबोर्ड अनुमति रोक दी गई है। (Permission Revoked)`
+    );
+  };
+
+  // Toggle Rent Amount Viewing Permission in Student Portal
+  const handleToggleAmountPermission = (student: BookingInquiry) => {
+    const nextAllowed = !student.allowViewRentAmount;
+    const updated: BookingInquiry = {
+      ...student,
+      allowViewRentAmount: nextAllowed,
+    };
+    onUpdateBooking(updated);
+
+    showToast(
+      nextAllowed
+        ? `👁️ ${student.fullName} अब अपने स्टूडेंट पोर्टल में किराया राशि देख सकेंगे!`
+        : `🔒 ${student.fullName} के पोर्टल में किराया राशि छिपा दी गई है!`
+    );
+  };
+
+  // Bulk Toggle Amount Permission for All Students
+  const handleBulkToggleAmountPermission = (allow: boolean) => {
+    if (bookings.length === 0) return;
+    bookings.forEach(student => {
+      onUpdateBooking({
+        ...student,
+        allowViewRentAmount: allow,
+      });
+    });
+    showToast(
+      allow
+        ? `👁️ सभी (${bookings.length}) छात्रों के पोर्टल में किराया राशि दिखने की अनुमति दे दी गई!`
+        : `🔒 सभी (${bookings.length}) छात्रों के पोर्टल में किराया राशि छिपा दी गई!`
     );
   };
 
@@ -190,6 +242,7 @@ export default function StudentRecordMaintainTab({
       rentStatus: newRentStatus,
       status: 'approved',
       ownerPermission: newOwnerPermission,
+      allowViewRentAmount: newAllowViewRentAmount,
       studyYear: newStudyYear,
       checkInDate: newCheckInDate,
       parentPhone: newParentPhone.trim(),
@@ -229,6 +282,7 @@ export default function StudentRecordMaintainTab({
     setNewNotes('');
     setNewDues(0);
     setNewRentStatus('pending');
+    setNewAllowViewRentAmount(false);
 
     showToast(`✓ नया छात्र "${newStudentData.fullName}" सफलतापूर्वक डेटाबेस में सुरक्षित हो गया!`);
   };
@@ -288,6 +342,13 @@ export default function StudentRecordMaintainTab({
     return bookings.filter(b => b.idCardPermissionRequested);
   }, [bookings]);
 
+  // Pending QR Self-Registration Admissions (Awaiting Caretaker Approval)
+  const pendingSelfRegistrations = useMemo(() => {
+    return bookings.filter(
+      (b) => (b.inquiryType === 'self-register' || b.customNotes?.includes('QR')) && (b.status === 'pending' || b.ownerPermission === false)
+    );
+  }, [bookings]);
+
   // Handle Approve +1 ID Card Download
   const handleApproveIdCardDownload = (student: BookingInquiry) => {
     const currentLimit = student.idCardDownloadLimit ?? 1;
@@ -338,29 +399,103 @@ export default function StudentRecordMaintainTab({
     showToast(`✓ ${student.fullName} का ID कार्ड डाउनलोड काउंटर 0 पर रीसेट कर दिया गया!`);
   };
 
-  // Export CSV
+  // Export CSV with Complete Student Accounts and Grand Financial Totals
   const handleExportCSV = () => {
     if (bookings.length === 0) {
       alert('No student records to export.');
       return;
     }
-    const headers = ['Full Name', 'Phone', 'Room Number', 'Room Type', 'Study Year', 'Rent Status', 'Monthly Rent', 'Dashboard Permitted', 'Parent Phone', 'Hometown', 'Check-in Date'];
-    const rows = bookings.map(b => [
-      `"${(b.fullName || '').replace(/"/g, '""')}"`,
-      `"${(b.phone || '').replace(/"/g, '""')}"`,
-      `"${(b.roomNumber || '').replace(/"/g, '""')}"`,
-      `"${(b.roomType || '').replace(/"/g, '""')}"`,
-      `"${(b.studyYear || '').replace(/"/g, '""')}"`,
-      `"${(b.rentStatus || 'pending').replace(/"/g, '""')}"`,
-      `"${b.monthlyRentAmount || ''}"`,
-      `"${isDashboardPermitted(b) ? 'Yes' : 'No'}"`,
-      `"${(b.parentPhone || b.guardianPhone || '').replace(/"/g, '""')}"`,
-      `"${(b.hometown || '').replace(/"/g, '""')}"`,
-      `"${(b.checkInDate || '').replace(/"/g, '""')}"`
-    ]);
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+    let totalMonthlyRentSum = 0;
+    let totalDepositSum = 0;
+    let totalPaidToDateSum = 0;
+    let totalDuesSum = 0;
+
+    const headers = [
+      'Student Name (छात्र का नाम)',
+      'Phone (मोबाइल नंबर)',
+      'Father Name (पिता का नाम)',
+      'Course / Stream',
+      'Room Number (कमरा संख्या)',
+      'Room Type (कमरा प्रकार)',
+      'Study Year (वर्ष)',
+      'Rent Status (किराया स्थिति)',
+      'Monthly Rent Amount (मासिक किराया ₹)',
+      'Security Deposit (जमा सिक्योरिटी ₹)',
+      'Total History Paid (कुल जमा भुगतान ₹)',
+      'Outstanding Dues (बकाया ₹)',
+      'Dashboard Permitted (पोर्टल अनुमति)',
+      'Amount Visible to Student (पोर्टल में राशि दिखेगी)',
+      'Parent Phone (अभिभावक फोन)',
+      'Hometown (गृह नगर)',
+      'Aadhar Number (आधार संख्या)',
+      'Check-in Date (प्रवेश तिथि)',
+      'Notes'
+    ];
+
+    const rows = bookings.map(b => {
+      const monthlyRent = Number(b.monthlyRentAmount) || 0;
+      const deposit = Number(b.paidDeposit) || 0;
+      const dues = Number(b.dues) || 0;
+      const historyPaid = (b.paymentHistory || [])
+        .filter(p => p.status === 'paid')
+        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+      totalMonthlyRentSum += monthlyRent;
+      totalDepositSum += deposit;
+      totalPaidToDateSum += historyPaid;
+      totalDuesSum += dues;
+
+      return [
+        `"${(b.fullName || '').replace(/"/g, '""')}"`,
+        `"${(b.phone || '').replace(/"/g, '""')}"`,
+        `"${(b.fatherName || b.guardianName || '').replace(/"/g, '""')}"`,
+        `"${(b.course || '').replace(/"/g, '""')}"`,
+        `"${(b.roomNumber || '').replace(/"/g, '""')}"`,
+        `"${(b.roomType || '').replace(/"/g, '""')}"`,
+        `"${(b.studyYear || '').replace(/"/g, '""')}"`,
+        `"${(b.rentStatus || 'pending').toUpperCase()}"`,
+        `"${monthlyRent}"`,
+        `"${deposit}"`,
+        `"${historyPaid}"`,
+        `"${dues}"`,
+        `"${isDashboardPermitted(b) ? 'YES' : 'NO'}"`,
+        `"${b.allowViewRentAmount ? 'VISIBLE (दिखेगी)' : 'HIDDEN (छिपी है)'}"`,
+        `"${(b.parentPhone || b.guardianPhone || '').replace(/"/g, '""')}"`,
+        `"${(b.hometown || '').replace(/"/g, '""')}"`,
+        `"${(b.aadharNumber || '').replace(/"/g, '""')}"`,
+        `"${(b.checkInDate || '').replace(/"/g, '""')}"`,
+        `"${(b.notes || '').replace(/"/g, '""')}"`
+      ];
+    });
+
+    // Grand totals summary row
+    const summaryDivider = headers.map(() => '""');
+    const summaryRow = [
+      `"*** GRAND TOTALS (कुल योग) ***"`,
+      `"Total Students: ${bookings.length}"`,
+      `""`,
+      `""`,
+      `""`,
+      `""`,
+      `""`,
+      `""`,
+      `"${totalMonthlyRentSum}"`,
+      `"${totalDepositSum}"`,
+      `"${totalPaidToDateSum}"`,
+      `"${totalDuesSum}"`,
+      `""`,
+      `""`,
+      `""`,
+      `""`,
+      `""`,
+      `""`,
+      `"Generated on ${new Date().toLocaleString('en-IN')}"`
+    ];
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(',')), summaryDivider.join(','), summaryRow.join(',')].join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const filename = `Modanwal_Hostel_Students_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `Modanwal_Hostel_All_Students_Accounts_${new Date().toISOString().split('T')[0]}.csv`;
     triggerFileDownload(blob, filename);
   };
 
@@ -416,27 +551,63 @@ export default function StudentRecordMaintainTab({
           </p>
         </div>
 
-        {/* Primary Add Button */}
-        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto shrink-0">
+        {/* Primary Action Buttons */}
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2.5 w-full lg:w-auto shrink-0">
+          {/* QR ADMISSION POSTER TRIGGER */}
+          <button
+            type="button"
+            onClick={() => setIsQrModalOpen(true)}
+            className="bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-extrabold text-xs sm:text-sm py-3 px-4 sm:px-5 rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer border border-indigo-400 hover:scale-[1.02] active:scale-95"
+            id="btn-open-student-admission-qr"
+            title="Open Student Admission QR Code & Poster"
+          >
+            <QrCode className="w-4 h-4 text-indigo-200" />
+            <span>📲 नया छात्र QR कार्ड (Admission QR)</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsAddModalOpen(true)}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs sm:text-sm py-3 px-5 rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer border border-indigo-400 hover:scale-[1.02] active:scale-95"
+            className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs sm:text-sm py-3 px-4 sm:px-5 rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer border border-indigo-400 hover:scale-[1.02] active:scale-95"
             id="btn-add-new-student-record"
           >
             <UserPlus className="w-4 h-4 text-indigo-200" />
-            <span>+ नया छात्र रिकॉर्ड जोड़ें (Add Student)</span>
+            <span>+ नया छात्र जोड़ें</span>
           </button>
 
           <button
             type="button"
             onClick={handleExportCSV}
-            className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs py-3 px-4 rounded-2xl border border-slate-700 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            title="Download CSV register"
+            className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs py-3 px-3.5 rounded-2xl border border-slate-700 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            title="Download CSV register with complete student accounts and grand total calculations"
           >
             <Download className="w-4 h-4 text-slate-300" />
-            <span>Export CSV</span>
+            <span>📥 Export CSV (विस्तृत खाता + कुल योग)</span>
           </button>
+
+          {bookings.length > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={() => handleBulkToggleAmountPermission(false)}
+                className="bg-amber-950/40 hover:bg-amber-900/60 text-amber-300 hover:text-amber-100 font-bold text-xs py-3 px-3.5 rounded-2xl border border-amber-800/60 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                title="सभी छात्रों से पोर्टल में किराया राशि छिपाएं"
+              >
+                <EyeOff className="w-3.5 h-3.5 text-amber-400" />
+                <span>🔒 सभी से राशि छिपाएं</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleBulkToggleAmountPermission(true)}
+                className="bg-indigo-950/40 hover:bg-indigo-900/60 text-indigo-300 hover:text-indigo-100 font-bold text-xs py-3 px-3.5 rounded-2xl border border-indigo-800/60 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                title="सभी छात्रों को पोर्टल में किराया राशि देखने की अनुमति दें"
+              >
+                <Eye className="w-3.5 h-3.5 text-indigo-400" />
+                <span>👁️ सभी को राशि दिखाएं</span>
+              </button>
+            </>
+          )}
 
           {bookings.length > 0 && (
             <button
@@ -449,11 +620,46 @@ export default function StudentRecordMaintainTab({
               title="Delete all student records from database"
             >
               <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-              <span>सभी रिकॉर्ड हटाएं</span>
+              <span>हटाएं</span>
             </button>
           )}
         </div>
       </div>
+
+      {/* Pending QR Self-Registration Admissions Banner */}
+      {pendingSelfRegistrations.length > 0 && (
+        <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-800 text-white rounded-3xl p-5 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-fade-in border-2 border-indigo-400">
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-white/20 text-white flex items-center justify-center shrink-0 shadow-inner border border-white/30 animate-pulse">
+              <QrCode className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className="font-display font-extrabold text-sm sm:text-base flex items-center gap-2 flex-wrap">
+                <span>📲 {pendingSelfRegistrations.length} नए छात्र ने QR कोड से एडमिशन फॉर्म भरा है!</span>
+                <span className="bg-amber-400 text-slate-950 text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-xs">
+                  Approval Pending (केयरटेकर सत्यापन प्रतीक्षित)
+                </span>
+              </h4>
+              <p className="text-xs text-indigo-100 mt-1">
+                आवेदक: <strong className="text-white font-bold">{pendingSelfRegistrations.map(s => s.fullName).join(', ')}</strong> (केयरटेकर द्वारा अप्रूव करने पर ही छात्र अपने फोन नंबर से पोर्टल लॉगिन कर सकेंगे)
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            id="btn-review-pending-qr-admissions"
+            onClick={() => {
+              setSelectedApprovalStudentId(pendingSelfRegistrations[0]?.id || null);
+              setIsReviewApprovalOpen(true);
+            }}
+            className="w-full md:w-auto px-5 py-3 bg-white text-indigo-950 hover:bg-indigo-50 font-black text-xs sm:text-sm rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+          >
+            <CheckCircle className="w-4 h-4 text-emerald-600" />
+            <span>डेटा चेक व अप्रूव करें (Review & Approve) &rarr;</span>
+          </button>
+        </div>
+      )}
 
       {/* ID Card Download Permission Requests Banner */}
       {pendingIdCardRequests.length > 0 && (
@@ -516,8 +722,77 @@ export default function StudentRecordMaintainTab({
         </div>
       )}
 
-      {/* KPI Stats Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+      {/* Sub-View Navigation Switch (छात्र लिस्ट vs कमरा आवंटन व खाली/भरा स्टेटस) */}
+      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-3xs flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setSubView('roster')}
+            className={`px-4 py-2 rounded-lg text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+              subView === 'roster'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Users className="w-4 h-4 text-indigo-600" />
+            <span>छात्र रिकॉर्ड लिस्ट (Students Roster)</span>
+            <span className="bg-slate-200 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+              {totalStudents}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSubView('room-matrix')}
+            className={`px-4 py-2 rounded-lg text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+              subView === 'room-matrix'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50'
+            }`}
+          >
+            <Bed className="w-4 h-4" />
+            <span>कमरा आवंटन व खाली/भरा ट्रैकर (Room Vacancy & Allocation)</span>
+            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+              subView === 'room-matrix' ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'
+            }`}>
+              Live Tracker
+            </span>
+          </button>
+        </div>
+
+        <div className="text-[11px] text-slate-500 font-medium hidden sm:block px-2">
+          {subView === 'roster' ? (
+            <span>💡 कमरा खाली/भरा स्टेटस देखने के लिए ऊपर <strong>कमरा आवंटन ट्रैकर</strong> बटन दबाएं</span>
+          ) : (
+            <span>💡 छात्र विवरण देखने के लिए <strong>छात्र रिकॉर्ड लिस्ट</strong> बटन दबाएं</span>
+          )}
+        </div>
+      </div>
+
+      {/* RENDER VIEW 1: ROOM VACANCY & ALLOCATION MATRIX */}
+      {subView === 'room-matrix' && (
+        <RoomVacancyManager
+          bookings={bookings}
+          config={config}
+          onUpdateBooking={onUpdateBooking}
+          onUpdateConfig={(newCfg) => {
+            if (onUpdateConfig) onUpdateConfig(newCfg);
+          }}
+          onOpenStudentDashboard={onOpenStudentDashboard}
+          onAddStudentToRoom={(roomNum, roomType) => {
+            setNewRoomNumber(roomNum);
+            setNewRoomType(roomType);
+            setSubView('roster');
+            setIsAddModalOpen(true);
+          }}
+        />
+      )}
+
+      {/* RENDER VIEW 2: STUDENTS ROSTER REGISTER */}
+      {subView === 'roster' && (
+        <>
+          {/* KPI Stats Summary Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Students */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
           <div className="flex items-center justify-between text-slate-400">
@@ -703,6 +978,7 @@ export default function StudentRecordMaintainTab({
                   <th className="py-3.5 px-4">कमरा आवंटन (Room & Type)</th>
                   <th className="py-3.5 px-4">किराया स्थिति (Monthly Rent & Status)</th>
                   <th className="py-3.5 px-4">🔑 स्टूडेंट डैशबोर्ड अनुमति (Dashboard Access)</th>
+                  <th className="py-3.5 px-4">💰 किराया राशि गोपनीयता (Amount Privacy)</th>
                   <th className="py-3.5 px-4">🪪 ID कार्ड डाउनलोड सीमा (ID Card Limit)</th>
                   <th className="py-3.5 px-4 text-right">कार्यवाही (Actions)</th>
                 </tr>
@@ -862,6 +1138,40 @@ export default function StudentRecordMaintainTab({
                         </p>
                       </td>
 
+                      {/* Col 5: Amount Visibility Permission (Privacy Control) */}
+                      <td className="py-4 px-4 space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleAmountPermission(student)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 border shadow-2xs ${
+                              student.allowViewRentAmount
+                                ? 'bg-indigo-50 text-indigo-800 border-indigo-300 hover:bg-indigo-100 hover:scale-[1.01]'
+                                : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 hover:scale-[1.01]'
+                            }`}
+                            id={`toggle-amount-permission-${student.id}`}
+                            title={student.allowViewRentAmount ? 'क्लिक करें: छात्र से किराया राशि छिपाएं' : 'क्लिक करें: छात्र को किराया राशि देखने दें'}
+                          >
+                            {student.allowViewRentAmount ? (
+                              <>
+                                <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                                <span>दिखेगी (Visible)</span>
+                              </>
+                            ) : (
+                              <>
+                                <EyeOff className="w-3.5 h-3.5 text-amber-700" />
+                                <span>🔒 छिपी है (Hidden)</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-slate-500 max-w-xs leading-tight">
+                          {student.allowViewRentAmount
+                            ? '✓ छात्र अपने पोर्टल में किराया व रसीद राशि देख सकता है।'
+                            : '🔒 छात्र पोर्टल में राशि सुरक्षित/छिपी रहेगी (केवल आप देखेंगे)।'}
+                        </p>
+                      </td>
+
                       {/* Col 5: ID Card Download Limit, Quota & Approval Controls */}
                       <td className="py-4 px-4 space-y-2">
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -1016,6 +1326,8 @@ export default function StudentRecordMaintainTab({
           </div>
         )}
       </div>
+      </>
+      )}
 
       {/* ======================= MODAL: ADD NEW STUDENT ======================= */}
       {isAddModalOpen && (
@@ -1351,6 +1663,44 @@ export default function StudentRecordMaintainTab({
                     </span>
                   )}
                 </div>
+
+                {/* Amount Privacy Option in Add Modal */}
+                <div className="pt-2 border-t border-indigo-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <EyeOff className="w-4 h-4 text-amber-700 shrink-0" />
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900">
+                        किराया राशि गोपनीयता (Student Portal Rent Amount Privacy)
+                      </h4>
+                      <p className="text-[11px] text-slate-600">
+                        छात्र के पोर्टल में किराया राशि (₹) छिपी रहेगी या दिखेगी?
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={newAllowViewRentAmount}
+                      onChange={(e) => setNewAllowViewRentAmount(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
+                </div>
+                <div className="text-[10px] font-bold p-2 rounded-xl bg-slate-100 border border-slate-200">
+                  {newAllowViewRentAmount ? (
+                    <span className="text-indigo-700 flex items-center gap-1">
+                      <Eye className="w-3 h-3 text-indigo-600 shrink-0" />
+                      <span>👁️ राशि दिखेगी: छात्र पोर्टल में अपनी किराया राशि व भुगतान रसीद का विवरण देख पाएगा।</span>
+                    </span>
+                  ) : (
+                    <span className="text-amber-800 flex items-center gap-1">
+                      <EyeOff className="w-3 h-3 text-amber-700 shrink-0" />
+                      <span>🔒 राशि छिपी रहेगी (Default): छात्र के पोर्टल में कोई भी रकम (₹) नहीं दिखेगी, केवल आप देखेंगे।</span>
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Section 4: Notes */}
@@ -1456,7 +1806,7 @@ export default function StudentRecordMaintainTab({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1">किराया स्थिति</label>
                   <select
@@ -1478,6 +1828,18 @@ export default function StudentRecordMaintainTab({
                   >
                     <option value="granted">✅ Allowed (अनुमति है)</option>
                     <option value="denied">🔒 Denied (अनुमति रोकें)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">किराया राशि दिखेगी?</label>
+                  <select
+                    value={editingStudent.allowViewRentAmount ? 'visible' : 'hidden'}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, allowViewRentAmount: e.target.value === 'visible' })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold"
+                  >
+                    <option value="hidden">🔒 छिपी रहे (Hidden)</option>
+                    <option value="visible">👁️ दिखेगी (Visible)</option>
                   </select>
                 </div>
               </div>
@@ -1775,6 +2137,44 @@ export default function StudentRecordMaintainTab({
             lastAutoEmailSentDate: nowStr
           });
           showToast(`✓ स्वचालित किराया ईमेल अधिसूचना रिकॉर्ड की गई!`);
+        }}
+      />
+
+      {/* ======================= MODAL: NEW STUDENT ADMISSION QR POSTER ======================= */}
+      <NewStudentRegistrationQrModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        config={config}
+        bookings={bookings}
+        onOpenSelfRegistrationForm={() => {
+          setIsQrModalOpen(false);
+          if (onOpenSelfRegistrationForm) {
+            onOpenSelfRegistrationForm();
+          }
+        }}
+        onOpenReviewApprovals={() => {
+          setIsQrModalOpen(false);
+          setIsReviewApprovalOpen(true);
+        }}
+      />
+
+      {/* ======================= MODAL: CARETAKER REVIEW & APPROVAL DESK ======================= */}
+      <ReviewAdmissionApprovalModal
+        isOpen={isReviewApprovalOpen}
+        onClose={() => {
+          setIsReviewApprovalOpen(false);
+          setSelectedApprovalStudentId(null);
+        }}
+        config={config}
+        bookings={bookings}
+        selectedStudentId={selectedApprovalStudentId}
+        onUpdateBooking={(updated) => {
+          onUpdateBooking(updated);
+          showToast(`✓ ${updated.fullName} का डेटा अपडेट/स्वीकृत किया गया!`);
+        }}
+        onDeleteBooking={(id) => {
+          onDeleteBooking(id);
+          showToast(`✓ रिकॉर्ड हटा दिया गया`);
         }}
       />
 

@@ -13,7 +13,7 @@ export interface Facility {
 }
 
 export interface RoomOption {
-  id: 'single' | 'twin';
+  id: 'single' | 'twin' | 'full';
   name: string;
   capacity: string;
   description: string;
@@ -27,7 +27,7 @@ export interface BookingInquiry {
   fullName: string;
   phone: string;
   email: string;
-  roomType: 'single' | 'twin';
+  roomType: 'single' | 'twin' | 'full';
   studyYear: string;
   course?: string;
   fatherName?: string;
@@ -36,7 +36,7 @@ export interface BookingInquiry {
   customNotes?: string;
   notes?: string;
   addons: string[];
-  inquiryType?: 'prebook' | 'ask' | 'visit';
+  inquiryType?: 'prebook' | 'ask' | 'visit' | 'self-register';
   configuredEstimate?: number | null;
   timestamp?: string;
 
@@ -60,6 +60,8 @@ export interface BookingInquiry {
   parentPhone?: string;
   guardianPhone?: string;
   aadharNumber?: string;
+  // Student Portal Rent Amount Visibility Permission
+  allowViewRentAmount?: boolean; // When true, student can view their rent and payment amounts in student portal. When false (default), amounts are hidden.
   // ID Card Download Quota & Owner Permission fields
   idCardDownloadLimit?: number; // Max allowed downloads (default is 1)
   idCardDownloadCount?: number; // Number of times student has downloaded their ID card
@@ -72,6 +74,21 @@ export interface BookingInquiry {
   paidDeposit?: number;
   dues?: number;
   paymentHistory?: PaymentRecord[];
+}
+
+export interface DailyLedgerEntry {
+  id: string;
+  date: string; // YYYY-MM-DD
+  titleOrName: string; // Student Name or Party/Source
+  studentId?: string; // Optional reference to BookingInquiry
+  roomNumber?: string;
+  category: 'rent' | 'deposit' | 'mess' | 'cooler' | 'electric' | 'advance' | 'maintenance' | 'expense' | 'other';
+  entryType: 'income' | 'expense'; // default 'income'
+  amount: number;
+  paymentMode: 'cash' | 'upi' | 'bank' | 'online' | 'other';
+  notes?: string;
+  recordedBy?: string;
+  timestamp: string;
 }
 
 export interface PaymentRecord {
@@ -93,8 +110,10 @@ export interface HostelConfig {
   address?: string;
   singleRoomRent: number;
   twinRoomRent: number;
+  fullRoomRent?: number;
   singleRoomDeposit: number;
   twinRoomDeposit: number;
+  fullRoomDeposit?: number;
   coolerPrice: number;
   laundryPrice: number;
   chairPrice: number;
@@ -115,6 +134,7 @@ export interface HostelConfig {
   aboutIntro?: string;
   aboutSingleFeatures?: string[];
   aboutTwinFeatures?: string[];
+  aboutFullFeatures?: string[];
 
   // Facilities Customization
   facilitiesHeading?: string;
@@ -144,6 +164,7 @@ export interface HostelConfig {
   tourKitchenDesc?: string;
   tourSingleDesc?: string;
   tourTwinDesc?: string;
+  tourFullDesc?: string;
   tourLobbyDesc?: string;
 
   // Contact FAQs Customization
@@ -160,6 +181,7 @@ export interface HostelConfig {
   photoHero?: string;
   photoSingle?: string;
   photoTwin?: string;
+  photoFull?: string;
   photoKitchen?: string;
   photoLobby?: string;
 
@@ -213,6 +235,7 @@ export interface HostelConfig {
   hideKitchenSection?: boolean;
   hideSingleOccupancy?: boolean;
   hideTwinSharing?: boolean;
+  hideFullRoomOccupancy?: boolean;
   hideMainUniqueFeature?: boolean;
   hideEstimateCalculator?: boolean;
   hidePaymentQrCode?: boolean;
@@ -226,6 +249,7 @@ export interface HostelConfig {
   // Room Occupancy / Booking Status (Room Full / Booking Open requested by user)
   isSingleFull?: boolean;
   isTwinFull?: boolean;
+  isFullRoomFull?: boolean;
 
   // Admissions & Inclusion Customization
   admissionsText?: string;
@@ -237,6 +261,20 @@ export interface HostelConfig {
   defaultRentDueDay?: number; // Default day of month rent is due (1 to 28, default: 5)
   autoRentEmailCcAdmin?: boolean; // Whether to CC the caretaker email
   lastAutoEmailScanTimestamp?: string;
+  // Room Inventory & Floor Plan Management
+  roomsList?: HostelRoom[];
+}
+
+export interface HostelRoom {
+  id: string; // e.g. "101"
+  roomNumber: string; // e.g. "101"
+  floor?: string; // e.g. "Ground Floor", "1st Floor", "2nd Floor"
+  type: 'single' | 'twin' | 'full'; // single (1-bed), twin (2-bed), full (private full room)
+  capacity: number; // 1 or 2
+  status?: 'available' | 'occupied' | 'maintenance' | 'reserved';
+  customRent?: number;
+  notes?: string;
+  amenities?: string[];
 }
 
 export interface AutomatedRentEmailLog {
@@ -271,6 +309,7 @@ export interface Testimonial {
   category: 'kitchen' | 'study' | 'facilities' | 'general';
   yearOfStay: string;
   timestamp?: string;
+  hidden?: boolean;
 }
 
 export interface MaintenanceLog {

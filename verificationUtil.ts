@@ -80,7 +80,7 @@ export function buildStudentVerificationUrl(student: BookingInquiry, config: Hos
   let origin = 'https://ais-pre-at6hsde7brqiqn75g6mgew-482445399479.asia-east1.run.app';
   
   if (typeof window !== 'undefined' && window.location) {
-    const currentOrigin = window.location.origin || '';
+    let currentOrigin = window.location.origin || '';
     // Never encode AI Studio or Google wrapper URLs into the QR code
     if (
       currentOrigin && 
@@ -88,6 +88,10 @@ export function buildStudentVerificationUrl(student: BookingInquiry, config: Hos
       !currentOrigin.includes('google.com/apps') &&
       !currentOrigin.includes('google.com')
     ) {
+      // Automatically convert private dev container URL to public preview container URL
+      if (currentOrigin.includes('ais-dev-')) {
+        currentOrigin = currentOrigin.replace('ais-dev-', 'ais-pre-');
+      }
       origin = currentOrigin;
     }
   }

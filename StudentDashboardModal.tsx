@@ -640,64 +640,12 @@ export default function StudentDashboardModal({
                     </button>
                   </form>
 
-                  {/* Registered Students Helper List (auto-fills both name & phone) */}
-                  {bookings.length > 0 && (
-                    <div className="pt-4 border-t border-slate-100 text-left space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                          Registered Students List (Auto-fill):
-                        </span>
-                        <span className="text-[10px] text-indigo-600 font-semibold">
-                          Click to fill name & phone
-                        </span>
-                      </div>
-                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                        {bookings.map((b) => {
-                          const permitted = isDashboardPermitted(b);
-                          return (
-                            <button
-                              key={b.id}
-                              type="button"
-                              onClick={() => {
-                                setNameSearchInput(b.fullName);
-                                setPhoneSearchInput(b.phone);
-                                setSearchError(null);
-                              }}
-                              className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 transition-colors flex items-center justify-between text-xs text-left cursor-pointer group"
-                            >
-                              <div className="flex items-center gap-2">
-                                <div className={`w-7 h-7 rounded-lg font-black text-xs flex items-center justify-center ${
-                                  permitted ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
-                                }`}>
-                                  {b.fullName.charAt(0)}
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="font-bold text-slate-800 group-hover:text-indigo-700">{b.fullName}</span>
-                                    {permitted ? (
-                                      <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold px-1.5 py-0.2 rounded-full flex items-center gap-0.5">
-                                        <CheckCircle className="w-2.5 h-2.5" /> Allowed
-                                      </span>
-                                    ) : (
-                                      <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[9px] font-bold px-1.5 py-0.2 rounded-full flex items-center gap-0.5">
-                                        <Lock className="w-2.5 h-2.5" /> Locked
-                                      </span>
-                                    )}
-                                  </div>
-                                  <span className="block text-[10px] text-slate-400">
-                                    Room {b.roomNumber || 'Assigned'} • {b.phone}
-                                  </span>
-                                </div>
-                              </div>
-                              <span className="text-[10px] font-bold text-indigo-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md group-hover:bg-white group-hover:border-indigo-300">
-                                Fill &rarr;
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  <div className="pt-4 border-t border-slate-100 text-center">
+                    <p className="text-[11px] text-slate-500 flex items-center justify-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                      <span>डैशबोर्ड केवल आपके पंजीकृत नाम व फोन नंबर से ही खुलेगा।</span>
+                    </p>
+                  </div>
                 </>
               )}
             </div>
@@ -989,13 +937,17 @@ export default function StudentDashboardModal({
                         <div className="flex justify-between py-1 border-b border-slate-50">
                           <span className="text-slate-400 font-medium">Monthly Fee:</span>
                           <span className="font-extrabold text-slate-900">
-                            ₹{currentStudent.monthlyRentAmount || 4450} / month
+                            {currentStudent.allowViewRentAmount
+                              ? `₹${currentStudent.monthlyRentAmount || 4450} / month`
+                              : '🔒 केयरटेकर अनुमति पर उपलब्ध'}
                           </span>
                         </div>
                         <div className="flex justify-between py-1 border-b border-slate-50">
                           <span className="text-slate-400 font-medium">Security Deposit:</span>
                           <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                            ₹{currentStudent.paidDeposit || 3000} (Paid & Refundable)
+                            {currentStudent.allowViewRentAmount
+                              ? `₹${currentStudent.paidDeposit || 3000} (Paid & Refundable)`
+                              : '🔒 सुरक्षित (Paid)'}
                           </span>
                         </div>
                         <div className="py-1">

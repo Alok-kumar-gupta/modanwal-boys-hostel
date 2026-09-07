@@ -169,29 +169,13 @@ export async function drawQRCodeToCanvasElement(
   text: string,
   options?: QRCodeDrawOptions & { size?: number }
 ): Promise<string> {
-  const size = options?.size || 240;
-  canvas.width = size;
-  canvas.height = size;
+  const size = options?.size || 300;
+  const dark = options?.dark || '#000000';
+  const light = options?.light || '#ffffff';
+  const margin = options?.margin !== undefined ? options.margin : 2;
+  const ecLevel = options?.errorCorrectionLevel || 'M';
 
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    const success = drawQRCodeToContext(ctx, 0, 0, size, text, {
-      margin: options?.margin !== undefined ? options.margin : 8,
-      dark: options?.dark || '#0f172a',
-      light: options?.light || '#ffffff',
-      errorCorrectionLevel: options?.errorCorrectionLevel || 'M',
-    });
-
-    if (success) {
-      try {
-        return canvas.toDataURL('image/png');
-      } catch (e) {
-        // ignore
-      }
-    }
-  }
-
-  // Fallback to engine's built-in toCanvas if direct context draw had an issue
+  // Primary: Official engine toCanvas (pure vector precision directly on DOM canvas)
   const engine = getQREngine();
   if (engine && typeof engine.toCanvas === 'function') {
     try {
@@ -201,12 +185,9 @@ export async function drawQRCodeToCanvasElement(
           text,
           {
             width: size,
-            margin: 1,
-            color: {
-              dark: options?.dark || '#0f172a',
-              light: options?.light || '#ffffff',
-            },
-            errorCorrectionLevel: options?.errorCorrectionLevel || 'M',
+            margin,
+            color: { dark, light },
+            errorCorrectionLevel: ecLevel,
           },
           (err: any) => {
             if (err) reject(err);
@@ -215,7 +196,29 @@ export async function drawQRCodeToCanvasElement(
         );
       });
       return canvas.toDataURL('image/png');
-    } catch (e) {}
+    } catch (e) {
+      console.warn('engine.toCanvas failed, falling back to 2D context:', e);
+    }
+  }
+
+  // Secondary fallback: Direct manual context matrix draw
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const success = drawQRCodeToContext(ctx, 0, 0, size, text, {
+      margin: margin * 4,
+      dark,
+      light,
+      errorCorrectionLevel: ecLevel,
+    });
+    if (success) {
+      try {
+        return canvas.toDataURL('image/png');
+      } catch (e) {
+        // ignore
+      }
+    }
   }
 
   return '';
@@ -241,22 +244,22 @@ export async function generateStudentQRCode(
   const light = options?.light || '#ffffff';
   const ecLevel = options?.errorCorrectionLevel || 'M';
 
-  // Stage 1: Primary zero-dependency synchronous generation via qrcode-generator
-  try {
-    const qr = (typeof qrcodeGen === 'function' ? qrcodeGen : (qrcodeGen as any)?.default || qrcodeGen)(
-      0,
-      ecLevel
-    );
-    qr.addData(dataText);
-    qr.make();
-    const cellCount = qr.getModuleCount();
-    const cellSize = Math.max(2, Math.floor((width - 16) / cellCount));
-    const dataUrl = qr.createDataURL(cellSize, 4);
-    if (dataUrl && dataUrl.startsWith('data:image/')) {
-      return dataUrl;
+  // Stage 1: Official high-resolution QRCode.toDataURL (pure PNG, zero blur)
+  const engine = getQREngine();
+  if (engine && typeof engine.toDataURL === 'function') {
+    try {
+      const dataUrl = await engine.toDataURL(dataText, {
+        width,
+        margin: options?.margin !== undefined ? options.margin : 2,
+        color: { dark, light },
+        errorCorrectionLevel: ecLevel,
+      });
+      if (dataUrl && dataUrl.startsWith('data:image/')) {
+        return dataUrl;
+      }
+    } catch (err) {
+      console.warn('Engine toDataURL failed, trying fallback:', err);
     }
-  } catch (err) {
-    console.warn('qrcodeGen.createDataURL failed, proceeding to canvas stage:', err);
   }
 
   // Stage 2: Try rendering via offscreen DOM canvas element
@@ -267,18 +270,18 @@ export async function generateStudentQRCode(
         size: width,
         dark,
         light,
-        margin: 8,
+        margin: options?.margin !== undefined ? options.margin : 6,
         errorCorrectionLevel: ecLevel,
       });
       if (dataUrl && dataUrl.startsWith('data:image/')) {
         return dataUrl;
       }
     } catch (err) {
-      console.warn('Offscreen canvas QR rendering failed, proceeding to vector SVG fallback:', err);
+      console.warn('Offscreen canvas QR rendering failed, proceeding to secondary fallback:', err);
     }
   }
 
-  // Stage 3: Try vector SVG generation via qrcodeGen.createSvgTag
+  // Stage 3: Synchronous generation via qrcode-generator
   try {
     const qr = (typeof qrcodeGen === 'function' ? qrcodeGen : (qrcodeGen as any)?.default || qrcodeGen)(
       0,
@@ -286,30 +289,14 @@ export async function generateStudentQRCode(
     );
     qr.addData(dataText);
     qr.make();
-    const svg = qr.createSvgTag(4, 2);
-    if (svg && svg.includes('<svg')) {
-      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    const cellCount = qr.getModuleCount();
+    const cellSize = Math.max(4, Math.floor((width - 16) / cellCount));
+    const dataUrl = qr.createDataURL(cellSize, 4);
+    if (dataUrl && dataUrl.startsWith('data:image/')) {
+      return dataUrl;
     }
   } catch (err) {
-    console.warn('Vector SVG QR generation failed:', err);
-  }
-
-  // Stage 4: Try resolved secondary engine.toDataURL directly
-  const engine = getQREngine();
-  if (engine && typeof engine.toDataURL === 'function') {
-    try {
-      const dataUrl = await engine.toDataURL(dataText, {
-        width,
-        margin: 1,
-        color: { dark, light },
-        errorCorrectionLevel: ecLevel,
-      });
-      if (dataUrl && dataUrl.startsWith('data:image/')) {
-        return dataUrl;
-      }
-    } catch (err) {
-      console.warn('Engine toDataURL failed:', err);
-    }
+    console.warn('qrcodeGen.createDataURL fallback issue:', err);
   }
 
   return '';

@@ -73,7 +73,13 @@ export function getStudentRentApproachingStatus(
   const isApproaching = daysRemaining >= 0 && daysRemaining <= noticeDays && !isPaid && student.status === 'approved';
   const alreadySentForCycle = student.lastAutoEmailSentMonth === monthKey;
 
-  const rentAmount = student.monthlyRentAmount || (student.roomType === 'single' ? (config.singleRoomRent || 4500) : (config.twinRoomRent || 3000));
+  const rentAmount = student.monthlyRentAmount || (
+    student.roomType === 'single'
+      ? (config.singleRoomRent || 4500)
+      : student.roomType === 'full'
+      ? (config.fullRoomRent || 5500)
+      : (config.twinRoomRent || 3000)
+  );
 
   const studentEmail = (student.email && student.email.includes('@') && student.email !== 'No email provided')
     ? student.email
@@ -134,7 +140,12 @@ export function generateAutomatedRentEmailContent(
   const caretakerName = config.caretakerName || 'Alok Kumar Gupta';
   const caretakerPhone = config.phone || '8887968504';
   const upiId = config.upiId || '8887968504@ybl';
-  const roomNumber = student.roomNumber || (student.roomType === 'single' ? 'Single Room' : 'Twin Sharing');
+  const roomTypeLabel = student.roomType === 'single'
+    ? 'Single Occupancy (1-Seater)'
+    : student.roomType === 'full'
+    ? 'Full Room Private (निजी पूरा कमरा)'
+    : 'Twin Sharing (2-Seater)';
+  const roomNumber = student.roomNumber || (student.roomType === 'single' ? 'Single Room' : student.roomType === 'full' ? 'Full Private Room' : 'Twin Sharing');
 
   let subject = '';
   if (isDueToday) {
@@ -151,7 +162,7 @@ This is an automated rent payment reminder from ${hostelName} regarding your upc
 
 📋 STAY & RENT PAYMENT SUMMARY:
 • Resident Name: ${student.fullName}
-• Room Number: ${roomNumber} (${student.roomType === 'single' ? 'Single Occupancy' : 'Twin Sharing'})
+• Room Number: ${roomNumber} (${roomTypeLabel})
 • Rent Due Date: ${dueDateFormatted} (${isDueToday ? 'DUE TODAY' : `Due in ${daysRemaining} days`})
 • Monthly Rent: ₹${rentAmount.toLocaleString('en-IN')}
 • Payment Status: 🟡 Pending (Due Soon)
